@@ -22,6 +22,7 @@ Progress is saved in this browser using `localStorage`. This means it stays on t
 - XP levels and a basic resource inventory.
 - All / To do / Completed filters.
 - A Canvas 2D isometric meadow renderer with terrain, trees, flowers, a pond and a starter house.
+- Canonical terrain definitions, aliases, immutable grid queries, and validated terrain updates.
 - Validated local storage, non-destructive v1 migration, and JSON backup/import.
 - Gentle approach: no missed-task penalties.
 
@@ -95,12 +96,15 @@ styles.css              layout and theme
 src/rules.js            pure priority, reward, and task lifecycle rules
 src/storage.js          validation, migration, and localStorage helpers
 src/transfer.js         export/import envelope and strict parsing
-src/world/coords.js     grid/screen transforms, tile picking and scene bounds
-src/world/map.js        deterministic sample meadow data
-src/world/renderer.js   procedural Canvas 2D drawing primitives
-src/world/scene.js      draw-command composition and deterministic depth sorting
-src/world/controller.js DPR-aware sizing, redraw scheduling and cleanup
-src/world/index.js      public CQ.world.mount(...) adapter
+src/world/coords.js          grid/screen transforms, tile picking and scene bounds
+src/world/tiles.js           canonical terrain definitions, aliases and variant helper
+src/world/map.js             deterministic sample meadow data using tile definitions
+src/world/mapValidation.js   structured map validation
+src/world/grid.js            immutable grid queries and updates
+src/world/renderer.js        procedural Canvas 2D drawing primitives
+src/world/scene.js           draw-command composition and deterministic depth sorting
+src/world/controller.js      DPR-aware sizing, redraw scheduling and cleanup
+src/world/index.js           public CQ.world.mount(...) adapter
 tests/*.test.js         dependency-free node:test suites
 ```
 
@@ -114,6 +118,32 @@ The meadow is a real isometric grid rather than static CSS artwork. Tiles use a 
 
 Phase 2.1 is intentionally a rendering foundation. It does not include player movement, camera drag/zoom, free placement, inventory, crafting, shops, biomes, multiplayer, or cloud sync. The world is static and is not yet connected to task completions.
 
+## Phase 2.2 grid and tile system
+
+Phase 2.2 adds a data layer underneath the unchanged renderer. Canonical terrain definitions live in `src/world/tiles.js` and contain only `id`, `label`, `walkable`, `visualCategory`, and `variants`. The canonical types are `grass`, `dirt`, `water`, `stone`, and `sand`; each has five deterministic visual variants.
+
+The sample meadow keeps its original raw terrain IDs: `path` is an alias for canonical `dirt`, and `pond` is an alias for canonical `water`. Aliases are resolution rules only. They never rewrite stored tile data, so all Phase 2.1 positions, raw IDs, and variants remain byte-for-byte compatible. Canonical queries include aliases: asking for `dirt` returns both raw `dirt` and raw `path` tiles, and asking for `water` returns both raw `water` and raw `pond` tiles.
+
+The variant formula remains exactly `(col * 7 + row * 11 + salt * 5) % variants`. The sample uses salt `1`; object variants continue to use their original per-object salts. All terrain definitions declare five variants, so newly declared terrain types remain within the sample's existing variant range.
+
+### Public APIs
+
+`CQ.world.mount(...)` is unchanged. Phase 2.2 adds these public members:
+
+- `CQ.world.tiles.resolveTerrainType(id)`, `getTerrainDefinition(id)`, `isAllowedTerrainType(id)`, `isValidVariant(id, variant)`, and `variantFor(col, row, salt, variants)`.
+- `CQ.world.grid.createGrid(width, height, options)`, `adoptGrid(map)`, `isInBounds(grid, col, row)`, `indexOf(grid, col, row)`, `getTile(grid, col, row)`, `getNeighbors(grid, col, row, options)`, `getTilesByType(grid, terrain)`, and `updateTile(grid, col, row, patch)`.
+- `CQ.world.validateMap(map)` returns structured error objects.
+- `CQ.world.assertValidMap(map)` returns the map unchanged or throws `CQ.world.WorldMapError`.
+- `CQ.world.WorldMapError` exposes `code` and an `errors` array.
+
+`createGrid()` builds a validated row-major terrain grid with an empty object list. `adoptGrid()` validates and deeply clones a JSON-shaped map. `getTile()` returns a detached tile copy. `getNeighbors()` returns detached `{ col, row, tile }` entries in a deterministic cardinal order, with optional diagonals via `{ diagonal: true }`. `getTilesByType()` returns detached `{ col, row, tile }` entries in row-major order. `indexOf()` returns a row-major flat index, or `-1` when out of bounds.
+
+Updates are immutable functional updates. `updateTile()` validates the anchor and patch, deeply clones the whole map, applies the patch only to the target tile, revalidates the candidate, and returns the new map. The original map, unrelated tiles, object records, and nested metadata are never mutated. Accessors never return references into the internal map.
+
+Validation is strict about the required map structure, positive integer dimensions, rectangular tile rows, recognized terrain IDs (including aliases), variant ranges, and object IDs/kinds/anchors/variants. Harmless future metadata fields on the map, tiles, and objects are preserved and accepted. Each validation error has the shape `{ code, path, message, details }`, with paths such as `tiles[3][6].variant` or `objects[2].col`.
+
+Phase 2.2 is still a model-layer milestone. It does not add movement, placement tools, terrain editing in the UI, task-to-world rewards, biomes, inventory, crafting, or persistence of world maps. The renderer still draws the legacy `grass`, `path`, and `pond` visuals; canonical `dirt`, `water`, `stone`, and `sand` IDs validate correctly but currently fall back to the renderer's grass palette until a later rendering phase gives them dedicated artwork.
+
 ## Tests
 
 Run the complete automated suite from this directory:
@@ -122,7 +152,7 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch, DPR sizing, and mount/cleanup behavior.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, and terrain updates.
 
 ## MVP boundary
 
