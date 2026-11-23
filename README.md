@@ -1,3 +1,5 @@
+# minetodo
+
 # CozyQuest MVP
 
 A local-first, browser-based prototype for a cozy productivity + self-care app with an isometric voxel-inspired home world.
