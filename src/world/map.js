@@ -1,16 +1,18 @@
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) {
+  const isNode = typeof module === 'object' && module.exports;
+  const tileDefs = isNode ? require('./tiles.js') : root.CQ.worldTiles;
+  const api = factory(tileDefs);
+  if (isNode) {
     module.exports = api;
   } else {
     (root.CQ = root.CQ || {}).worldMap = api;
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (tileDefs) {
   'use strict';
 
   const WIDTH = 11;
   const HEIGHT = 9;
-  const TILE_TYPES = ['grass', 'path', 'pond'];
+  const TILE_TYPES = tileDefs.LEGACY_TERRAIN_IDS.slice();
   const OBJECT_KINDS = ['tree', 'house', 'flowers', 'bush', 'reeds', 'fence'];
 
   const PATH_TILES = [
@@ -42,7 +44,7 @@
   ];
 
   function variantFor(col, row, salt) {
-    return (col * 7 + row * 11 + salt * 5) % 5;
+    return tileDefs.variantFor(col, row, salt, tileDefs.DEFAULT_VARIANTS);
   }
 
   function key(col, row) {
@@ -61,7 +63,8 @@
         let type = 'grass';
         if (path.has(id)) type = 'path';
         if (pond.has(id)) type = 'pond';
-        tileRow.push({ type, variant: variantFor(col, row, 1) });
+        const variantCount = tileDefs.getTerrainDefinition(type).variants;
+        tileRow.push({ type, variant: tileDefs.variantFor(col, row, 1, variantCount) });
       }
       tiles.push(tileRow);
     }
