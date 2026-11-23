@@ -597,6 +597,17 @@ body {
   color: #637166;
 }
 
+.secondary-btn:hover {
+  background: #e7e4d9;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
 .task-toolbar {
   display: flex;
   align-items: center;
@@ -679,6 +690,7 @@ body {
   border-radius: 20px;
   background: #edf2e8;
   color: #63805e;
+  white-space: nowrap;
 }
 
 .priority-dot.high {
@@ -686,9 +698,14 @@ body {
   color: #a87832;
 }
 
-.priority-dot.critical {
+.priority-dot.critical,.priority-dot.urgent.important {
   background: #f8e4df;
   color: #b45f4d;
+}
+
+.priority-dot.urgent:not(.important),.priority-dot.important:not(.urgent) {
+  background: #fbefdb;
+  color: #a87832;
 }
 
 .priority-dot.low {
@@ -805,7 +822,7 @@ dialog::backdrop {
   margin-bottom: 14px;
 }
 
-input:not([type=radio]),select {
+input:not([type=radio]):not([type=checkbox]),select {
   display: block;
   width: 100%;
   margin-top: 7px;
@@ -839,20 +856,20 @@ legend {
 
 .priority-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3,1fr);
   gap: 7px;
 }
 
-.priority-options label {
+.priority-options label,.priority-flags label {
   cursor: pointer;
 }
 
-.priority-options input {
+.priority-options input,.priority-flags input {
   position: absolute;
   opacity: 0;
 }
 
-.priority-options span {
+.priority-options span,.priority-flags span {
   display: block;
   border: 1px solid #e6e5da;
   padding: 10px;
@@ -860,10 +877,27 @@ legend {
   font-size: 10px;
 }
 
-.priority-options input:checked+span {
+.priority-options input:checked+span,.priority-flags input:checked+span {
   border-color: #83a77c;
   background: #eef4e9;
   color: #4e7454;
+}
+
+.priority-flags {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.priority-options input:disabled+span,.priority-flags input:disabled+span {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+#reward-preview {
+  margin: 8px 0 0;
+  color: #5d7b62;
 }
 
 .dialog-actions {
@@ -926,8 +960,16 @@ legend {
   .wallet span {
     font-size: 10px;
   }
+  .section-heading {
+    align-items: start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
   .section-heading h2 {
     font-size: 22px;
+  }
+  .section-actions {
+    width: 100%;
   }
   .task-reward {
     display: none;
@@ -965,6 +1007,15 @@ legend {
   .form-grid {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+  .section-actions button {
+    flex: 1;
+  }
+  .priority-options {
+    gap: 5px;
+  }
+  .priority-options span,.priority-flags span {
+    padding: 8px;
   }
 }
 

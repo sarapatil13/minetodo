@@ -39,7 +39,7 @@
       </aside>
     </section>
     <section class="tasks-section">
-      <div class="section-heading"><div><p class="eyebrow">YOUR REAL-LIFE ADVENTURES</p><h2>Today's tasks</h2></div><button class="primary-btn" id="open-add">＋ Add a task</button></div>
+      <div class="section-heading"><div><p class="eyebrow">YOUR REAL-LIFE ADVENTURES</p><h2>Today's tasks</h2></div><div class="section-actions"><button type="button" class="secondary-btn" id="export-json">⬇ Export</button><button type="button" class="secondary-btn" id="import-json">⬆ Import</button><button class="primary-btn" id="open-add">＋ Add a task</button><input type="file" id="import-file" accept="application/json,.json" hidden></div></div>
       <div class="task-toolbar"><div class="filters" role="group" aria-label="Filter tasks"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="open">To do</button><button class="filter" data-filter="done">Completed</button></div><span class="muted" id="task-count">0 tasks</span></div>
       <div id="task-list" class="task-list"><div class="empty-state"><div>🌷</div><b>Your adventure starts with one small step.</b><p>Add a task to earn your first rewards.</p></div></div>
     </section>
@@ -49,8 +49,11 @@
 <dialog id="task-dialog"><form method="dialog" id="task-form"><div class="dialog-head"><div><p class="eyebrow">A NEW LITTLE ADVENTURE</p><h2 id="dialog-title">Add a task</h2></div><button type="button" class="close-btn" id="close-dialog" aria-label="Close">×</button></div>
 <label>What would you like to do?<input id="task-title" maxlength="90" placeholder="e.g. Review operating systems" required></label>
 <div class="form-grid"><label>Task type<select id="task-type"><option>Quick task</option><option>Daily habit</option><option>Recurring task</option><option>Project</option><option>Self-care</option></select></label><label>Due date<input id="task-date" type="date"></label></div>
-<fieldset><legend>Priority</legend><div class="priority-options"><label><input type="radio" name="priority" value="low"><span>🌱 Low</span></label><label><input type="radio" name="priority" value="medium" checked><span>🌿 Medium</span></label><label><input type="radio" name="priority" value="high"><span>🌟 High</span></label><label><input type="radio" name="priority" value="critical"><span>🔥 Urgent + important</span></label></div></fieldset>
+<fieldset><legend>Priority</legend><div class="priority-options"><label><input type="radio" name="tier" value="low"><span>🌱 Low</span></label><label><input type="radio" name="tier" value="medium" checked><span>🌿 Medium</span></label><label><input type="radio" name="tier" value="high"><span>🌟 High</span></label></div><div class="priority-flags"><label><input type="checkbox" id="priority-urgent"><span>⚡ Urgent</span></label><label><input type="checkbox" id="priority-important"><span>⭐ Important</span></label></div><p class="muted" id="reward-preview">+20 XP · +6 coins · 2 wood</p></fieldset>
 <div class="dialog-actions"><button type="button" class="secondary-btn" id="cancel-dialog">Cancel</button><button class="primary-btn" id="save-task" value="save">Save task</button></div></form></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="src/rules.js"></script>
+<script src="src/storage.js"></script>
+<script src="src/transfer.js"></script>
 <script src="app.js"></script>
 </body></html>
