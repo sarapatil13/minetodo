@@ -325,4 +325,6 @@ $('import-file').addEventListener('change', (e) => {
 });
 
 render();
-window.CQ.world?.mount(document.getElementById('world-canvas'));
+window.CQ.world?.mount(document.getElementById('world-canvas'), {
+  infoPanel: document.getElementById('world-info-panel')
+});

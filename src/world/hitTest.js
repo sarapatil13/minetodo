@@ -367,6 +367,7 @@
     HIT_SHAPES,
     pick,
     pickAtScenePoint,
-    anchorForTarget
+    anchorForTarget,
+    shapesForTarget
   };
 });

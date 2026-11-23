@@ -1,13 +1,14 @@
 (function (root, factory) {
   const isNode = typeof module === 'object' && module.exports;
   const coords = isNode ? require('./coords.js') : root.CQ.worldCoords;
-  const api = factory(coords);
+  const hitTest = isNode ? require('./hitTest.js') : root.CQ.worldHitTest;
+  const api = factory(coords, hitTest);
   if (isNode) {
     module.exports = api;
   } else {
     (root.CQ = root.CQ || {}).worldRenderer = api;
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (coords) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (coords, hitTest) {
   'use strict';
 
   const PALETTE = {
@@ -435,12 +436,61 @@
     }
   }
 
+  // Feedback is a separate overlay pass. It never reorders or replaces the
+  // scene commands, so the default world rendering remains byte-for-byte
+  // identical when no interaction state is supplied.
+  const FEEDBACK_STYLES = Object.freeze([
+    Object.freeze({ key: 'hoverId', color: 'rgba(87,130,96,0.55)', width: 1.4, dash: [4, 3] }),
+    Object.freeze({ key: 'keyboardFocusId', color: 'rgba(214,157,67,0.9)', width: 2, dash: [5, 3] }),
+    Object.freeze({ key: 'selectedId', color: 'rgba(64,108,75,0.95)', width: 2.4, dash: [] })
+  ]);
+
+  function strokeShape(ctx, shape) {
+    if (!shape) return;
+    if (shape.type === 'ellipse') {
+      ctx.beginPath();
+      if (ctx.ellipse) {
+        ctx.ellipse(shape.cx, shape.cy, shape.rx, shape.ry, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(shape.cx, shape.cy, Math.max(shape.rx, shape.ry), 0, Math.PI * 2);
+      }
+    } else if (Array.isArray(shape.points) && shape.points.length > 1) {
+      polygon(ctx, shape.points);
+    } else {
+      return;
+    }
+    ctx.stroke();
+  }
+
+  function drawFeedback(ctx, feedback) {
+    if (!feedback || typeof feedback !== 'object') return;
+    const byId = feedback.targetsById || {};
+    if (!hitTest || typeof hitTest.shapesForTarget !== 'function') return;
+
+    for (const style of FEEDBACK_STYLES) {
+      const id = feedback[style.key];
+      if (typeof id !== 'string') continue;
+      const target = byId[id];
+      if (!target) continue;
+      const shapes = hitTest.shapesForTarget(target);
+      if (!shapes.length) continue;
+
+      ctx.save();
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = style.width;
+      if (typeof ctx.setLineDash === 'function') ctx.setLineDash(style.dash);
+      for (const shape of shapes) strokeShape(ctx, shape);
+      if (typeof ctx.setLineDash === 'function') ctx.setLineDash([]);
+      ctx.restore();
+    }
+  }
+
   const api = {
     PALETTE,
     drawBackdrop,
     drawTile,
     drawObject,
-    drawWorld(ctx, scene) {
+    drawWorld(ctx, scene, feedback) {
       for (const command of scene.commands) {
         if (command.layer === 'ground') {
           api.drawTile(ctx, command, scene.tile);
@@ -448,6 +498,7 @@
           api.drawObject(ctx, command, scene.tile);
         }
       }
+      drawFeedback(ctx, feedback);
     }
   };
 

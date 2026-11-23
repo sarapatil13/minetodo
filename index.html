@@ -21,7 +21,15 @@
       <article class="world-card">
         <div class="world-heading"><div><span class="eyebrow">COZYQUEST · YOUR HOME BIOME</span><h2>Meadow Haven</h2></div><span class="weather">☀️ <small>Sunny day</small></span></div>
         <div class="world-scene">
-          <canvas id="world-canvas" role="img" tabindex="0" aria-label="A cozy isometric meadow with a cottage, trees, flowers, a winding path and a pond.">A cozy isometric meadow with a cottage, trees, flowers, a winding path and a pond.</canvas>
+          <p id="world-controls-help" class="sr-only">Interactive meadow. Use the arrow keys to move between objects, Enter or Space to inspect the focused object, and Escape to close details. Plus and minus zoom, zero resets the view. Drag to pan; pinch or scroll to zoom.</p>
+          <canvas id="world-canvas" role="application" tabindex="0" aria-label="CozyQuest interactive isometric meadow" aria-describedby="world-controls-help">A cozy isometric meadow with a cottage, trees, flowers, a winding path and a pond.</canvas>
+          <aside id="world-info-panel" class="world-info-panel" role="region" aria-labelledby="world-object-title" hidden>
+            <button type="button" class="world-info-close" data-world-object-close aria-label="Close object details">×</button>
+            <p class="eyebrow">WORLD DETAILS</p>
+            <h3 id="world-object-title"></h3>
+            <p id="world-object-type" class="world-info-type" data-world-object-type></p>
+            <dl id="world-object-meta" class="world-info-meta" data-world-object-meta></dl>
+          </aside>
           <div class="world-caption">A peaceful place to begin <span>🌼</span></div>
         </div>
         <div class="world-footer"><span>🏡 Home plot</span><span>🔒 New biomes unlock as you grow</span></div>
@@ -53,9 +61,13 @@
 <script src="src/world/map.js"></script>
 <script src="src/world/mapValidation.js"></script>
 <script src="src/world/grid.js"></script>
-<script src="src/world/renderer.js"></script>
 <script src="src/world/scene.js"></script>
 <script src="src/world/camera.js"></script>
+<script src="src/world/hitTest.js"></script>
+<script src="src/world/renderer.js"></script>
+<script src="src/world/selectableTargets.js"></script>
+<script src="src/world/interactionState.js"></script>
+<script src="src/world/infoPanel.js"></script>
 <script src="src/world/cameraInput.js"></script>
 <script src="src/world/controller.js"></script>
 <script src="src/world/index.js"></script>
