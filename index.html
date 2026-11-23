@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f6f0e5"><title>CozyQuest — grow a little every day</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">✿</div><div><div class="brand-name">cozyquest</div><div class="brand-tag">little steps, lovely worlds</div></div></div>
+    <div class="player-strip"><span class="avatar">🧑🏻‍🌾</span><div><b>Little Gardener</b><small id="level-label">Level 1 · Seedling</small></div></div>
+    <div class="wallet"><span>🪙 <b id="coins">0</b></span><span>✨ <b id="xp">0</b> XP</span></div>
+  </header>
+  <main>
+    <section class="hero-row">
+      <div><p class="eyebrow">YOUR LITTLE CORNER OF THE WORLD</p><h1>A world that grows<br><em>when you do.</em></h1><p class="hero-copy">Every real-life step helps your little village bloom.</p></div>
+      <div class="streak-pill">🌱 <span><b id="done-count">0</b> tasks completed</span></div>
+    </section>
+    <section class="dashboard">
+      <article class="world-card">
+        <div class="world-heading"><div><span class="eyebrow">YOUR HOME BIOME</span><h2>Meadow Haven</h2></div><span class="weather">☀️ <small>Sunny day</small></span></div>
+        <div class="world-scene" aria-label="A small isometric voxel meadow with a cottage, trees and a pond">
+          <div class="sun"></div><div class="cloud cloud-a"></div><div class="cloud cloud-b"></div>
+          <div class="island-shadow"></div><div class="island">
+            <div class="path"></div><div class="pond"><i></i></div>
+            <div class="tree tree-one"><i></i><b></b></div><div class="tree tree-two"><i></i><b></b></div>
+            <div class="bush bush-one"></div><div class="bush bush-two"></div>
+            <div class="house"><div class="roof"></div><div class="house-front"><i class="window"></i><i class="door"></i></div><div class="house-side"></div></div>
+            <div class="flowers">✿　✿　✿</div><div class="fence"></div>
+          </div>
+          <div class="world-caption">A peaceful place to begin <span>🌼</span></div>
+        </div>
+        <div class="world-footer"><span>🏡 Home plot</span><span>🔒 New biomes unlock as you grow</span></div>
+      </article>
+      <aside class="side-column">
+        <article class="progress-card"><div class="card-title"><span>YOUR PROGRESS</span><span>✨</span></div><div class="level-line"><b id="level-name">Seedling</b><span id="level-progress-text">0 / 100 XP</span></div><div class="progress-track"><div id="xp-bar" class="progress-fill"></div></div><p class="muted" id="next-level">100 XP to Sprout</p><div class="stat-grid"><div><b id="wood">0</b><small>🪵 Wood</small></div><div><b id="stone">0</b><small>🪨 Stone</small></div><div><b id="iron">0</b><small>⛏️ Iron</small></div></div></article>
+        <article class="gentle-card"><div class="gentle-icon">🫶</div><div><b>Small steps count.</b><p>Rest is part of growing, too. There's no penalty for taking a slower day.</p></div></article>
+      </aside>
+    </section>
+    <section class="tasks-section">
+      <div class="section-heading"><div><p class="eyebrow">YOUR REAL-LIFE ADVENTURES</p><h2>Today's tasks</h2></div><button class="primary-btn" id="open-add">＋ Add a task</button></div>
+      <div class="task-toolbar"><div class="filters" role="group" aria-label="Filter tasks"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="open">To do</button><button class="filter" data-filter="done">Completed</button></div><span class="muted" id="task-count">0 tasks</span></div>
+      <div id="task-list" class="task-list"><div class="empty-state"><div>🌷</div><b>Your adventure starts with one small step.</b><p>Add a task to earn your first rewards.</p></div></div>
+    </section>
+    <footer>Made for gentle progress <span>·</span> Your tasks and progress stay on this device.</footer>
+  </main>
+</div>
+<dialog id="task-dialog"><form method="dialog" id="task-form"><div class="dialog-head"><div><p class="eyebrow">A NEW LITTLE ADVENTURE</p><h2 id="dialog-title">Add a task</h2></div><button type="button" class="close-btn" id="close-dialog" aria-label="Close">×</button></div>
+<label>What would you like to do?<input id="task-title" maxlength="90" placeholder="e.g. Review operating systems" required></label>
+<div class="form-grid"><label>Task type<select id="task-type"><option>Quick task</option><option>Daily habit</option><option>Recurring task</option><option>Project</option><option>Self-care</option></select></label><label>Due date<input id="task-date" type="date"></label></div>
+<fieldset><legend>Priority</legend><div class="priority-options"><label><input type="radio" name="priority" value="low"><span>🌱 Low</span></label><label><input type="radio" name="priority" value="medium" checked><span>🌿 Medium</span></label><label><input type="radio" name="priority" value="high"><span>🌟 High</span></label><label><input type="radio" name="priority" value="critical"><span>🔥 Urgent + important</span></label></div></fieldset>
+<div class="dialog-actions"><button type="button" class="secondary-btn" id="cancel-dialog">Cancel</button><button class="primary-btn" id="save-task" value="save">Save task</button></div></form></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body></html>
