@@ -1,0 +1,217 @@
+(function (root, factory) {
+  const isNode = typeof module === 'object' && module.exports;
+  const coords = isNode ? require('./coords.js') : root.CQ.worldCoords;
+  const mapData = isNode ? require('./map.js') : root.CQ.worldMap;
+  const renderer = isNode ? require('./renderer.js') : root.CQ.worldRenderer;
+  const sceneData = isNode ? require('./scene.js') : root.CQ.worldScene;
+  const api = factory(root, coords, mapData, renderer, sceneData);
+  if (isNode) {
+    module.exports = api;
+  } else {
+    (root.CQ = root.CQ || {}).worldController = api;
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (root, coords, mapData, renderer, sceneData) {
+  'use strict';
+
+  const MAX_DPR = 3;
+
+  function devicePixelRatio() {
+    const value = root && root.devicePixelRatio;
+    return Number.isFinite(value) && value > 0 ? value : 1;
+  }
+
+  function computeCanvasMetrics(cssWidth, cssHeight, dpr, maxDpr) {
+    const width = Number.isFinite(cssWidth) && cssWidth > 0 ? cssWidth : 1;
+    const height = Number.isFinite(cssHeight) && cssHeight > 0 ? cssHeight : 1;
+    const limit = Number.isFinite(maxDpr) && maxDpr > 0 ? maxDpr : MAX_DPR;
+    const ratio = Math.min(Math.max(Number.isFinite(dpr) && dpr > 0 ? dpr : 1, 0.1), limit);
+    return {
+      dpr: ratio,
+      width: Math.max(1, Math.round(width * ratio)),
+      height: Math.max(1, Math.round(height * ratio))
+    };
+  }
+
+  function computeView(bounds, width, height, options) {
+    const settings = options || {};
+    const padding = Number.isFinite(settings.padding) ? settings.padding : 8;
+    const bottomReserve = Number.isFinite(settings.bottomReserve) ? settings.bottomReserve : 24;
+    const maxScale = Number.isFinite(settings.maxScale) ? settings.maxScale : 1.4;
+    const availableWidth = Math.max(1, width - padding * 2);
+    const availableHeight = Math.max(1, height - bottomReserve - padding * 2);
+    const scale = Math.min(
+      availableWidth / Math.max(1, bounds.width),
+      availableHeight / Math.max(1, bounds.height),
+      maxScale
+    );
+
+    return {
+      scale,
+      x: padding + (availableWidth - bounds.width * scale) / 2 - bounds.minX * scale,
+      y: padding + (availableHeight - bounds.height * scale) / 2 - bounds.minY * scale
+    };
+  }
+
+  function createController(canvas, options) {
+    if (!canvas || typeof canvas.getContext !== 'function') return null;
+
+    const settings = options || {};
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const world = settings.scene || sceneData.createScene(
+      settings.map || mapData.createSampleMeadow(),
+      { origin: settings.origin, tile: settings.tile }
+    );
+    const maxDpr = Number.isFinite(settings.maxDpr) ? settings.maxDpr : MAX_DPR;
+    const observeTarget = settings.observeTarget || canvas.parentElement || canvas;
+
+    let destroyed = false;
+    let frame = 0;
+    let observer = null;
+    let dprQuery = null;
+    let lastMetrics = null;
+    let lastView = null;
+    let lastSize = { width: 0, height: 0 };
+
+    function readSize() {
+      const rect = typeof canvas.getBoundingClientRect === 'function'
+        ? canvas.getBoundingClientRect()
+        : null;
+      const parent = canvas.parentElement;
+      const width = (rect && rect.width) || (parent && parent.clientWidth) || 300;
+      const height = (rect && rect.height) || (parent && parent.clientHeight) || 180;
+      return { width: Math.max(1, width), height: Math.max(1, height) };
+    }
+
+    function resizeBackingStore(size) {
+      const metrics = computeCanvasMetrics(size.width, size.height, devicePixelRatio(), maxDpr);
+      if (canvas.width !== metrics.width) canvas.width = metrics.width;
+      if (canvas.height !== metrics.height) canvas.height = metrics.height;
+      return metrics;
+    }
+
+    function draw() {
+      if (destroyed) return;
+      const size = readSize();
+      const metrics = resizeBackingStore(size);
+      const view = computeView(world.bounds, size.width, size.height, settings);
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, metrics.width, metrics.height);
+      ctx.setTransform(metrics.dpr, 0, 0, metrics.dpr, 0, 0);
+      renderer.drawBackdrop(ctx, size.width, size.height);
+
+      ctx.save();
+      ctx.translate(view.x, view.y);
+      ctx.scale(view.scale, view.scale);
+      renderer.drawWorld(ctx, world);
+      ctx.restore();
+
+      lastSize = size;
+      lastMetrics = metrics;
+      lastView = view;
+    }
+
+    function requestRender() {
+      if (destroyed || frame) return frame;
+      const schedule = root && typeof root.requestAnimationFrame === 'function'
+        ? root.requestAnimationFrame.bind(root)
+        : (callback) => setTimeout(callback, 0);
+      frame = schedule(() => {
+        frame = 0;
+        draw();
+      });
+      return frame;
+    }
+
+    function removeDprListener(query, handler) {
+      if (!query || !handler) return;
+      if (typeof query.removeEventListener === 'function') {
+        query.removeEventListener('change', handler);
+      } else if (typeof query.removeListener === 'function') {
+        query.removeListener(handler);
+      }
+    }
+
+    function addDprListener(query, handler) {
+      if (!query) return;
+      if (typeof query.addEventListener === 'function') {
+        query.addEventListener('change', handler);
+      } else if (typeof query.addListener === 'function') {
+        query.addListener(handler);
+      }
+    }
+
+    function onDprChange() {
+      removeDprListener(dprQuery, onDprChange);
+      watchDpr();
+      requestRender();
+    }
+
+    function watchDpr() {
+      if (!root || typeof root.matchMedia !== 'function') return;
+      dprQuery = root.matchMedia('(resolution: ' + devicePixelRatio() + 'dppx)');
+      addDprListener(dprQuery, onDprChange);
+    }
+
+    function onResize() {
+      requestRender();
+    }
+
+    if (root && typeof root.addEventListener === 'function') {
+      root.addEventListener('resize', onResize);
+    }
+    if (root && typeof root.ResizeObserver === 'function') {
+      observer = new root.ResizeObserver(onResize);
+      observer.observe(observeTarget);
+    }
+    watchDpr();
+    requestRender();
+
+    const handle = {
+      world,
+      requestRender,
+      resize: requestRender,
+      redraw: draw,
+      inspect() {
+        return {
+          cssWidth: lastSize.width,
+          cssHeight: lastSize.height,
+          dpr: lastMetrics ? lastMetrics.dpr : devicePixelRatio(),
+          backingWidth: lastMetrics ? lastMetrics.width : canvas.width,
+          backingHeight: lastMetrics ? lastMetrics.height : canvas.height,
+          view: lastView
+        };
+      },
+      destroy() {
+        if (destroyed) return false;
+        destroyed = true;
+        if (frame && root && typeof root.cancelAnimationFrame === 'function') {
+          root.cancelAnimationFrame(frame);
+        }
+        frame = 0;
+        if (observer && typeof observer.disconnect === 'function') observer.disconnect();
+        observer = null;
+        if (root && typeof root.removeEventListener === 'function') {
+          root.removeEventListener('resize', onResize);
+        }
+        removeDprListener(dprQuery, onDprChange);
+        dprQuery = null;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        return true;
+      }
+    };
+
+    canvas.__cozyQuestWorldController = handle;
+    return handle;
+  }
+
+  return {
+    MAX_DPR,
+    devicePixelRatio,
+    computeCanvasMetrics,
+    computeView,
+    createController
+  };
+});
