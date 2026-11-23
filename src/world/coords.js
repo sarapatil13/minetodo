@@ -18,12 +18,12 @@
   // Extents are relative to a tile's screen anchor. They describe the full
   // drawn footprint so responsive fitting never clips tall objects.
   const OBJECT_EXTENTS = {
-    tree: { left: -34, top: -78, right: 34, bottom: 5 },
+    tree: { left: -34, top: -84, right: 34, bottom: 5 },
     house: { left: -40, top: -64, right: 40, bottom: 14 },
     flowers: { left: -23, top: -24, right: 23, bottom: 5 },
     bush: { left: -25, top: -28, right: 25, bottom: 5 },
     reeds: { left: -21, top: -30, right: 21, bottom: 5 },
-    fence: { left: -32, top: -18, right: 32, bottom: 7 }
+    fence: { left: -32, top: -24, right: 32, bottom: 7 }
   };
 
   function normalizeTile(tile) {
