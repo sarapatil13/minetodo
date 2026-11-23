@@ -20,6 +20,7 @@
   const grid = isNode ? require('./grid.js') : root.CQ.worldGrid;
   const renderer = isNode ? require('./renderer.js') : root.CQ.worldRenderer;
   const sceneData = isNode ? require('./scene.js') : root.CQ.worldScene;
+  const camera = isNode ? require('./camera.js') : root.CQ.worldCamera;
   const controller = isNode ? require('./controller.js') : root.CQ.worldController;
 
   function mount(canvas, options) {
@@ -56,6 +57,7 @@
     map: mapData,
     renderer,
     scene: sceneData,
+    camera,
     controller,
     mount,
     createSampleMeadow: mapData.createSampleMeadow,
