@@ -4,13 +4,15 @@
   const mapData = isNode ? require('./map.js') : root.CQ.worldMap;
   const renderer = isNode ? require('./renderer.js') : root.CQ.worldRenderer;
   const sceneData = isNode ? require('./scene.js') : root.CQ.worldScene;
-  const api = factory(root, coords, mapData, renderer, sceneData);
+  const camera = isNode ? require('./camera.js') : root.CQ.worldCamera;
+  const cameraInput = isNode ? require('./cameraInput.js') : root.CQ.worldCameraInput;
+  const api = factory(root, coords, mapData, renderer, sceneData, camera, cameraInput);
   if (isNode) {
     module.exports = api;
   } else {
     (root.CQ = root.CQ || {}).worldController = api;
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (root, coords, mapData, renderer, sceneData) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (root, coords, mapData, renderer, sceneData, camera, cameraInput) {
   'use strict';
 
   const MAX_DPR = 3;
@@ -66,12 +68,17 @@
     const maxDpr = Number.isFinite(settings.maxDpr) ? settings.maxDpr : MAX_DPR;
     const observeTarget = settings.observeTarget || canvas.parentElement || canvas;
 
+    // The camera is view state, not world state. Its configuration is fixed at
+    // creation and every later operation reads it from this single object.
+    let cameraState = camera.createCamera(world.bounds, settings.camera || {});
+    let cameraInputHandle = null;
     let destroyed = false;
     let frame = 0;
     let observer = null;
     let dprQuery = null;
     let lastMetrics = null;
     let lastView = null;
+    let lastViewport = null;
     let lastSize = { width: 0, height: 0 };
 
     function readSize() {
@@ -91,11 +98,25 @@
       return metrics;
     }
 
+    function syncViewport() {
+      const size = readSize();
+      const baseView = computeView(world.bounds, size.width, size.height, settings);
+      const viewport = camera.createViewport(size, baseView.scale, settings);
+      cameraState = camera.clampCamera(cameraState, world.bounds, viewport);
+      const view = camera.viewTransform(viewport, cameraState);
+
+      lastSize = size;
+      lastViewport = viewport;
+      lastView = view;
+      return { size, viewport, view };
+    }
+
     function draw() {
       if (destroyed) return;
-      const size = readSize();
+      const current = syncViewport();
+      const size = current.size;
+      const view = current.view;
       const metrics = resizeBackingStore(size);
-      const view = computeView(world.bounds, size.width, size.height, settings);
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, metrics.width, metrics.height);
@@ -108,9 +129,7 @@
       renderer.drawWorld(ctx, world);
       ctx.restore();
 
-      lastSize = size;
       lastMetrics = metrics;
-      lastView = view;
     }
 
     function requestRender() {
@@ -123,6 +142,19 @@
         draw();
       });
       return frame;
+    }
+
+    function currentViewport() {
+      if (destroyed) return lastViewport;
+      return syncViewport().viewport;
+    }
+
+    function applyCamera(next) {
+      if (destroyed) return;
+      const viewport = currentViewport();
+      cameraState = camera.normalizeCamera(next, world.bounds, viewport);
+      lastView = camera.viewTransform(viewport, cameraState);
+      requestRender();
     }
 
     function removeDprListener(query, handler) {
@@ -159,6 +191,17 @@
       requestRender();
     }
 
+    // Establish the first valid viewport/backing store before input can run.
+    const initial = syncViewport();
+    lastMetrics = resizeBackingStore(initial.size);
+
+    cameraInputHandle = cameraInput.attach(canvas, {
+      getCamera: () => cameraState,
+      setCamera: applyCamera,
+      getViewport: currentViewport,
+      getBounds: () => world.bounds
+    });
+
     if (root && typeof root.addEventListener === 'function') {
       root.addEventListener('resize', onResize);
     }
@@ -182,11 +225,19 @@
           backingWidth: lastMetrics ? lastMetrics.width : canvas.width,
           backingHeight: lastMetrics ? lastMetrics.height : canvas.height,
           view: lastView
+            ? { x: lastView.x, y: lastView.y, scale: lastView.scale }
+            : null,
+          viewport: lastViewport,
+          camera: camera.cloneCamera(cameraState)
         };
       },
       destroy() {
         if (destroyed) return false;
         destroyed = true;
+        if (cameraInputHandle && typeof cameraInputHandle.destroy === 'function') {
+          cameraInputHandle.destroy();
+        }
+        cameraInputHandle = null;
         if (frame && root && typeof root.cancelAnimationFrame === 'function') {
           root.cancelAnimationFrame(frame);
         }
