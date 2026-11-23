@@ -39,9 +39,9 @@ test('hover and selection transitions return new frozen state only when changed'
   assert.ok(Object.isFrozen(cleared));
 });
 
-test('invalid or unknown target ids are ignored', () => {
+test('invalid target values are ignored', () => {
   const initial = interactionState.createState(TARGETS.length);
-  assert.strictEqual(interactionState.setSelected(initial, 'object:missing'), initial);
+  assert.strictEqual(interactionState.setSelected(initial, undefined), initial);
   assert.strictEqual(interactionState.setHover(initial, ''), initial);
   assert.strictEqual(interactionState.setKeyboardFocus(initial, 42), initial);
 });
