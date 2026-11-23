@@ -20,15 +20,8 @@
     <section class="dashboard">
       <article class="world-card">
         <div class="world-heading"><div><span class="eyebrow">COZYQUEST · YOUR HOME BIOME</span><h2>Meadow Haven</h2></div><span class="weather">☀️ <small>Sunny day</small></span></div>
-        <div class="world-scene" aria-label="A small isometric voxel meadow with a cottage, trees and a pond">
-          <div class="sun"></div><div class="cloud cloud-a"></div><div class="cloud cloud-b"></div>
-          <div class="island-shadow"></div><div class="island">
-            <div class="path"></div><div class="pond"><i></i></div>
-            <div class="tree tree-one"><i></i><b></b></div><div class="tree tree-two"><i></i><b></b></div>
-            <div class="bush bush-one"></div><div class="bush bush-two"></div>
-            <div class="house"><div class="roof"></div><div class="house-front"><i class="window"></i><i class="door"></i></div><div class="house-side"></div></div>
-            <div class="flowers">✿　✿　✿</div><div class="fence"></div>
-          </div>
+        <div class="world-scene">
+          <canvas id="world-canvas" role="img" aria-label="A cozy isometric meadow with a cottage, trees, flowers, a winding path and a pond.">A cozy isometric meadow with a cottage, trees, flowers, a winding path and a pond.</canvas>
           <div class="world-caption">A peaceful place to begin <span>🌼</span></div>
         </div>
         <div class="world-footer"><span>🏡 Home plot</span><span>🔒 New biomes unlock as you grow</span></div>
@@ -55,5 +48,11 @@
 <script src="src/rules.js"></script>
 <script src="src/storage.js"></script>
 <script src="src/transfer.js"></script>
+<script src="src/world/coords.js"></script>
+<script src="src/world/map.js"></script>
+<script src="src/world/renderer.js"></script>
+<script src="src/world/scene.js"></script>
+<script src="src/world/controller.js"></script>
+<script src="src/world/index.js"></script>
 <script src="app.js"></script>
 </body></html>
