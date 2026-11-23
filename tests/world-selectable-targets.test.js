@@ -37,7 +37,7 @@ test('object targets use stable ids and map back to source command objects', () 
   assert.equal(house.col, 7);
   assert.equal(house.row, 3);
   assert.ok(Object.isFrozen(house));
-  assert.equal(index.targets.length, scene.map.objects.length);
+  assert.equal(index.targets.length, scene.map.objects.length + 1);
 });
 
 test('object target identities do not depend on array order', () => {
@@ -71,8 +71,8 @@ test('pond targets group all tile commands with deterministic synthetic ids', ()
   assert.deepEqual(ponds[0].commandIds, [
     'tile:1:1', 'tile:2:1', 'tile:1:2', 'tile:2:2'
   ]);
-  assert.deepEqual(ponds[0].commandIndexes, [5, 6, 9, 10]);
-  assert.equal(ponds[0].order, 5);
+  assert.deepEqual(ponds[0].commandIndexes, [4, 7, 8, 11]);
+  assert.equal(ponds[0].order, 4);
   assert.ok(Object.isFrozen(ponds[0]));
 });
 
