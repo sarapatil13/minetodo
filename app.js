@@ -87,8 +87,12 @@ function priorityLabel(priority) {
   return base + (priority.urgent ? ' · Urgent' : '') + (priority.important ? ' · Important' : '');
 }
 
+function priorityModifiers(priority) {
+  return `${priority.tier}${priority.urgent ? ' urgent' : ''}${priority.important ? ' important' : ''}`;
+}
+
 function badgeClass(priority) {
-  return `priority-dot ${priority.tier}${priority.urgent ? ' urgent' : ''}${priority.important ? ' important' : ''}`;
+  return `priority-dot ${priorityModifiers(priority)}`;
 }
 
 function renderTasks() {
@@ -108,11 +112,12 @@ function renderTasks() {
 
   list.innerHTML = tasks.map((t) => {
     const reward = rules.rewardFor(t.priority);
+    const modifiers = priorityModifiers(t.priority);
     const due = t.date
       ? ` · Due ${new Date(`${t.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
       : '';
     return (
-      `<article class="task-item ${t.done ? 'completed' : ''}">` +
+      `<article class="task-item ${t.done ? 'completed' : ''} ${modifiers}">` +
       `<button class="task-check" data-action="toggle" data-id="${t.id}" aria-label="${t.done ? 'Mark not done' : 'Complete task'}">${t.done ? '✓' : ''}</button>` +
       `<div class="task-main"><b>${escapeHtml(t.title)}</b><small>${escapeHtml(t.type)}${due}</small></div>` +
       `<span class="${badgeClass(t.priority)}">${escapeHtml(priorityLabel(t.priority))}</span>` +
@@ -136,9 +141,10 @@ function persistAndRender() {
   render();
 }
 
-function notify(message) {
+function notify(message, tone = 'info') {
   const el = $('toast');
   el.textContent = message;
+  el.dataset.tone = tone;
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
@@ -213,15 +219,15 @@ $('task-form').addEventListener('submit', (e) => {
     if (!current) { closeDialog(); return; }
     const patch = current.done ? fields : { ...fields, priority: readPriority() };
     const result = rules.editTask(state, editingId, patch);
-    if (!result.ok) { notify('Could not update task: ' + result.issues[0]); return; }
+    if (!result.ok) { notify('Could not update task: ' + result.issues[0], 'error'); return; }
     state = result.state;
-    notify('Task updated 🌿');
+    notify('Task updated 🌿', 'success');
   } else {
     const created = rules.createTask({ ...fields, priority: readPriority() }, { id: newId(), now: new Date().toISOString() });
-    if (!created.ok) { notify('Could not add task: ' + created.issues[0]); return; }
+    if (!created.ok) { notify('Could not add task: ' + created.issues[0], 'error'); return; }
     state = structuredClone(state);
     state.tasks.unshift(created.task);
-    notify('A new adventure added 🌱');
+    notify('A new adventure added 🌱', 'success');
   }
   persistAndRender();
   closeDialog();
@@ -237,20 +243,20 @@ $('task-list').addEventListener('click', (e) => {
   if (action === 'toggle') {
     if (!task.done) {
       const result = rules.completeTask(state, task.id, { entryId: newId(), now: new Date().toISOString() });
-      if (!result.ok) { notify('Could not complete task.'); return; }
+      if (!result.ok) { notify('Could not complete task.', 'error'); return; }
       state = result.state;
       if (result.entry) {
         const reward = result.entry.reward;
         const label = rules.rewardFor(result.entry.prioritySnapshot).label;
-        notify(`+${reward.xp} XP · +${reward.coins} coins · +${reward.amount} ${label} ✨`);
+        notify(`+${reward.xp} XP · +${reward.coins} coins · +${reward.amount} ${label} ✨`, 'success');
       } else {
-        notify('Completed again — reward already earned 🌿');
+        notify('Completed again — reward already earned 🌿', 'info');
       }
     } else {
       const result = rules.reopenTask(state, task.id);
-      if (!result.ok) { notify('Could not reopen task.'); return; }
+      if (!result.ok) { notify('Could not reopen task.', 'error'); return; }
       state = result.state;
-      notify('Task moved back to your list. Rewards stay earned.');
+      notify('Task moved back to your list. Rewards stay earned.', 'info');
     }
   } else if (action === 'edit') {
     openDialog(task);
@@ -258,9 +264,9 @@ $('task-list').addEventListener('click', (e) => {
   } else if (action === 'delete') {
     if (!confirm(`Delete “${task.title}”?`)) return;
     const result = rules.deleteTask(state, task.id);
-    if (!result.ok) { notify('Could not delete task.'); return; }
+    if (!result.ok) { notify('Could not delete task.', 'error'); return; }
     state = result.state;
-    notify('Task removed. Earned rewards stay with you.');
+    notify('Task removed. Earned rewards stay with you.', 'info');
   }
 
   persistAndRender();
@@ -284,9 +290,9 @@ $('export-json').addEventListener('click', () => {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notify('Backup downloaded 🌿');
+    notify('Backup downloaded 🌿', 'success');
   } catch (error) {
-    notify('Export failed: ' + error.message);
+    notify('Export failed: ' + error.message, 'error');
   }
 });
 
@@ -299,7 +305,7 @@ $('import-file').addEventListener('change', (e) => {
   const reader = new FileReader();
   reader.onload = () => {
     const result = transfer.parseImport(String(reader.result), { now: new Date().toISOString() });
-    if (!result.ok) { notify('Import rejected: ' + result.error); return; }
+    if (!result.ok) { notify('Import rejected: ' + result.error, 'error'); return; }
     const s = result.summary;
     const message =
       'Import this backup?\n\n' +
@@ -309,12 +315,12 @@ $('import-file').addEventListener('change', (e) => {
       `Wood ${s.resources.wood} · stone ${s.resources.stone} · iron ${s.resources.iron}`;
     if (!confirm(message)) return;
     const backup = storage.backupState(store, state, { now: new Date().toISOString() });
-    if (!backup.ok) { notify('Import cancelled: backup failed.'); return; }
+    if (!backup.ok) { notify('Import cancelled: backup failed.', 'error'); return; }
     state = result.state;
     persistAndRender();
-    notify('Backup imported 🌿');
+    notify('Backup imported 🌿', 'success');
   };
-  reader.onerror = () => notify('Could not read that file.');
+  reader.onerror = () => notify('Could not read that file.', 'error');
   reader.readAsText(file);
 });
 
