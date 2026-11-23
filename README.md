@@ -21,7 +21,7 @@ Progress is saved in this browser using `localStorage`. This means it stays on t
 - Permanent reward ledger: completing a task earns a reward once, forever.
 - XP levels and a basic resource inventory.
 - All / To do / Completed filters.
-- A cozy isometric-inspired meadow scene.
+- A Canvas 2D isometric meadow renderer with terrain, trees, flowers, a pond and a starter house.
 - Validated local storage, non-destructive v1 migration, and JSON backup/import.
 - Gentle approach: no missed-task penalties.
 
@@ -89,16 +89,30 @@ Use the **Export** and **Import** buttons above the task list.
 ## Project layout
 
 ```text
-index.html          UI and classic script load order
-app.js              UI bootstrap and event handlers
-styles.css          layout and theme
-src/rules.js        pure priority, reward, and task lifecycle rules
-src/storage.js      validation, migration, and localStorage helpers
-src/transfer.js     export/import envelope and strict parsing
-tests/*.test.js     dependency-free node:test suites
+index.html              UI and classic script load order
+app.js                  UI bootstrap and event handlers
+styles.css              layout and theme
+src/rules.js            pure priority, reward, and task lifecycle rules
+src/storage.js          validation, migration, and localStorage helpers
+src/transfer.js         export/import envelope and strict parsing
+src/world/coords.js     grid/screen transforms, tile picking and scene bounds
+src/world/map.js        deterministic sample meadow data
+src/world/renderer.js   procedural Canvas 2D drawing primitives
+src/world/scene.js      draw-command composition and deterministic depth sorting
+src/world/controller.js DPR-aware sizing, redraw scheduling and cleanup
+src/world/index.js      public CQ.world.mount(...) adapter
+tests/*.test.js         dependency-free node:test suites
 ```
 
-The modules in `src/` are UMD-style: browsers get `window.CQ`, while Node `require()` can load them directly for tests.
+The modules in `src/` are UMD-style: browsers get namespaced globals such as `window.CQ.rules` and `window.CQ.world`, while Node `require()` can load them directly for tests. No ES modules, network-loaded assets, frameworks, or build tools are required.
+
+## Phase 2.1 world renderer
+
+The meadow is a real isometric grid rather than static CSS artwork. Tiles use a 48×24 diamond projection, with an explicit inverse transform and a deterministic tile-picking rule for shared edges and corners. Ground tiles and objects share one painter's-order queue, so foreground terrain can occlude the base of a tall object while equal-depth objects still follow a stable row/column/id tie-break.
+
+`CQ.world.mount(canvas)` renders a deterministic 11×9 meadow. It fits the complete scene bounds, including tree and house height and pond details, into the available canvas. The controller keeps the backing store in sync with CSS size and device pixel ratio, schedules a single redraw per frame on resize, and exposes `destroy()` for cleanup. Rendering is independent of task rules, storage, rewards, and import/export.
+
+Phase 2.1 is intentionally a rendering foundation. It does not include player movement, camera drag/zoom, free placement, inventory, crafting, shops, biomes, multiplayer, or cloud sync. The world is static and is not yet connected to task completions.
 
 ## Tests
 
@@ -108,7 +122,7 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, and import/export rejection cases.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch, DPR sizing, and mount/cleanup behavior.
 
 ## MVP boundary
 
@@ -119,7 +133,7 @@ This slice intentionally does not include login, cloud sync, friend visits, shar
 1. Validate the task/reward loop with real users and improve confusing interactions.
 2. Add an in-app migration report and an undo/history view.
 3. Add focus timer and self-care flows.
-4. Add an actual isometric tile map, placement, crafting, and unlocks.
+4. Extend the rendered world with movement, placement, crafting, and unlocks.
 5. Add accounts, privacy rules, friend permissions, and cloud sync only when sharing is ready.
 6. Add analytics and AI suggestions using consent-aware, explainable data.
 
