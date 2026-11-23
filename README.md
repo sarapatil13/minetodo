@@ -24,6 +24,7 @@ Progress is saved in this browser using `localStorage`. This means it stays on t
 - A Canvas 2D isometric meadow renderer with terrain, trees, flowers, a pond and a starter house.
 - Canonical terrain definitions, aliases, immutable grid queries, and validated terrain updates.
 - Pointer-friendly camera panning and pointer-centred wheel/pinch zoom over the meadow.
+- Read-only inspection of meadow objects and the pond by mouse, touch, and keyboard.
 - Validated local storage, non-destructive v1 migration, and JSON backup/import.
 - Gentle approach: no missed-task penalties.
 
@@ -105,8 +106,13 @@ src/world/grid.js            immutable grid queries and updates
 src/world/renderer.js        procedural Canvas 2D drawing primitives
 src/world/scene.js           draw-command composition and deterministic depth sorting
 src/world/camera.js          camera state, viewport transforms, pan, zoom and constraints
-src/world/cameraInput.js     pointer, wheel, pinch and keyboard camera controls
-src/world/controller.js      DPR-aware sizing, camera lifecycle, redraw scheduling and cleanup
+src/world/cameraInput.js     sole canvas listener owner; pan, pinch, hover, tap and key semantics
+src/world/hitTest.js         renderer-derived hit shapes and painter-order target picking
+src/world/selectableTargets.js  stable object and pond target index with derived descriptions
+src/world/interactionState.js   immutable hover, selection, focus and pointer state
+src/world/infoPanel.js       DOM-only detail panel updates and close handling
+src/world/interaction.js     tap, hover, keyboard focus, selection and feedback lifecycle
+src/world/controller.js      DPR-aware sizing, camera and interaction lifecycle, scheduling and cleanup
 src/world/index.js           public CQ.world.mount(...) adapter
 tests/*.test.js         dependency-free node:test suites
 ```
@@ -191,6 +197,44 @@ The controller establishes a valid viewport and backing store before attaching i
 
 Phase 2.3 does not add player movement, tile interaction, terrain editing, placement, world-map persistence, camera persistence, task rewards, rotation, minimaps, visible zoom buttons, dependencies, or a build system. It continues to run from `file://` with classic scripts.
 
+## Phase 2.4 interactive objects
+
+Phase 2.4 adds read-only inspection to the existing world. It does not move, place, edit, delete, or persist objects, and it is not connected to task rewards. The default camera, sample meadow fingerprint, command order, and unselected screenshots are unchanged: feedback is an additive overlay pass that is omitted when no object is hovered, focused, or selected.
+
+### Controls
+
+- Hover a selectable object or the pond with a mouse to show subtle focus feedback and a pointer cursor. Moving off the target clears hover; drags and pinches do not leave a stale hover because camera changes recompute it from the cached pointer.
+- Click/tap a target to select it and open its detail panel. Click/tap empty terrain to clear the selection. A stationary pointer taps; moving beyond the threshold permanently classifies the gesture as a pan. Multi-touch, `pointercancel`, and lost pointer capture never tap.
+- Default tap thresholds are `6` CSS pixels for mouse and `10` for touch, configured through `CQ.world.mount(canvas, { tapThresholds: { mouse, touch } })`. The separate hit tolerances are `2` CSS pixels for mouse and `10` for touch and can be overridden with `toleranceCss`.
+- With the canvas focused, `ArrowRight`/`ArrowDown` move to the next target and `ArrowLeft`/`ArrowUp` move to the previous target without wrapping. `Enter` or `Space` selects the focused target, and `Escape` clears the selection and returns focus to the canvas. All handled keys prevent page scrolling. The existing `+`/`=`, `-`/`_`, and `0` camera shortcuts still work.
+- The detail panel's close button also clears the selection and restores focus. Its pointer and keyboard events stop propagation, so panel interaction cannot start a world pan.
+
+### Accessibility
+
+The canvas is an `application` region named `CozyQuest interactive isometric meadow` and described by screen-reader-only instructions in `#world-controls-help`. The existing visible focus outline remains. The panel is a hidden-by-default `region` labelled by `#world-object-title`; only existing map fields are shown, written with `textContent` rather than HTML. Missing panel markup leaves all canvas interaction working.
+
+### Targets and hit testing
+
+Objects use stable IDs derived from `object.id` (`object:<id>`), never array indexes. The pond is still terrain, not an object record; its synthetic ID is derived from sorted tile keys, for example `terrain:pond:8,5|9,5|8,6|9,6`. Only supported object kinds and connected `pond`/`water` terrain become selectable targets.
+
+Hit shapes mirror the renderer's actual artwork: leaf silhouettes, house faces, flower petals, fence posts and rails, pond diamonds, and their visible side faces. `coords.OBJECT_EXTENTS` remains fit-only and is not used as a final hitbox. Touch tolerance is capped on narrow artwork so transparent gaps are not selectable.
+
+All candidates share the same `scene.commands` order. Objects use their command index; a pond candidate uses the command index of the specific tile under the pointer. The later-painted candidate wins, with target ID and then tile coordinate providing deterministic tie-breaks.
+
+This model intentionally treats only objects and pond tiles as occluders. Other non-selectable terrain is not modeled as an occluder, so a selectable object visually behind ordinary grass may still be pickable. There is no story clustering, placement, editing, deletion, persistence, inventory, crafting, player movement, or task-to-world reward coupling in this phase.
+
+### Public interaction APIs
+
+`CQ.world.mount(...)` still returns the same world handle and `inspect().view` still has exactly `{ x, y, scale }`. Phase 2.4 adds:
+
+- `CQ.world.selectableTargets.buildSelectableTargets(scene, options)`, `describeTarget(target)`, and `ISSUE_CODES`.
+- `CQ.world.hitTest.pick(screenPoint, context, pointerType)`, `pickAtScenePoint(point, targets, options)`, `anchorForTarget(target)`, `shapesForTarget(target)`, and the mouse/touch tolerance constants.
+- `CQ.world.interactionState.createState(targetCount)` and its immutable `setHover`, `setSelected`, `setKeyboardFocus`, `moveFocus`, and `setPointer` helpers.
+- `CQ.world.infoPanel.attach(element, handlers)` for optional DOM markup; it is a no-op when the element is missing.
+- `CQ.world.interaction.create(canvas, dependencies)` for standalone interaction handles with `handleTap`, `handleHoverMove`, `handleHoverEnd`, `refreshHover`, `handleNavigate`, `handleActivate`, `handleClear`, `feedback`, `inspect`, and `destroy`.
+
+`mount()` accepts `{ infoPanel, tapThresholds, toleranceCss, targetOptions }`. The controller owns the interaction lifecycle and exposes a frozen snapshot as `inspect().interaction`, including hover, selection, keyboard focus, cached pointer, target IDs, target issues, and panel state. `destroy()` closes the panel, clears hover state, and leaves no duplicate listeners.
+
 ## Tests
 
 Run the complete automated suite from this directory:
@@ -199,7 +243,7 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, pointer input, resize handling, and controller cleanup.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, and controller cleanup.
 
 ## MVP boundary
 
