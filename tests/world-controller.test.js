@@ -94,3 +94,33 @@ test('createController sizes the backing store and can be destroyed', () => {
 
   assert.equal(handle.destroy(), false);
 });
+
+test('createController exposes interaction inspection and cleans up interaction listeners', () => {
+  const ctx = createContext();
+  const canvas = {
+    width: 0,
+    height: 0,
+    parentElement: null,
+    classList: {
+      values: new Set(),
+      add(value) { this.values.add(value); },
+      remove(value) { this.values.delete(value); },
+      contains(value) { return this.values.has(value); }
+    },
+    getContext: () => ctx,
+    getBoundingClientRect: () => ({ width: 320, height: 180 })
+  };
+
+  const handle = controller.createController(canvas, { maxDpr: 1 });
+  try {
+    const info = handle.inspect();
+    assert.equal(typeof info.interaction.selectInteraction, 'undefined');
+    assert.equal(info.interaction.targetCount > 0, true);
+    assert.equal(info.interaction.selectedId, null);
+    assert.equal(info.interaction.hoverId, null);
+    assert.equal(canvas.classList.values.has('pointerleave'), false);
+  } finally {
+    assert.equal(handle.destroy(), true);
+    assert.equal(handle.destroy(), false);
+  }
+});

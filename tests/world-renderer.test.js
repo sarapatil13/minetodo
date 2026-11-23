@@ -97,3 +97,63 @@ test('drawWorld dispatches commands in scene order', () => {
 
   assert.deepEqual(seen, built.commands.map((command) => command.id));
 });
+
+function feedbackFor(scene, targetId, level) {
+  const targets = require('../src/world/selectableTargets.js').buildSelectableTargets(scene).targets;
+  const target = targets.find((candidate) => candidate.id === targetId);
+  const feedback = { hoverId: null, keyboardFocusId: null, selectedId: null, targetsById: {} };
+  feedback.targetsById[target.id] = target;
+  feedback[level] = target.id;
+  return feedback;
+}
+
+test('drawWorld adds selected feedback without changing command dispatch order', () => {
+  const built = sceneData.createScene(mapData.createSampleMeadow());
+  const ctx = createContext();
+  const seen = [];
+  const originalTile = renderer.drawTile;
+  const originalObject = renderer.drawObject;
+
+  renderer.drawTile = (_ctx, command) => seen.push(command.id);
+  renderer.drawObject = (_ctx, command) => seen.push(command.id);
+  try {
+    renderer.drawWorld(ctx, built, feedbackFor(built, 'object:starter-house', 'selectedId'));
+  } finally {
+    renderer.drawTile = originalTile;
+    renderer.drawObject = originalObject;
+  }
+
+  assert.deepEqual(seen, built.commands.map((command) => command.id));
+  assert.ok(ctx.calls.filter((call) => call.name === 'stroke').length > 0);
+});
+
+test('drawWorld renders pond feedback for every commanded tile in the target', () => {
+  const built = sceneData.createScene(mapData.createSampleMeadow());
+  const targets = require('../src/world/selectableTargets.js').buildSelectableTargets(built).targets;
+  const pond = targets.find((target) => target.category === 'terrain');
+  const ctx = createContext();
+
+  renderer.drawWorld(ctx, built, feedbackFor(built, pond.id, 'hoverId'));
+
+  const strokes = ctx.calls.filter((call) => call.name === 'stroke');
+  assert.ok(strokes.length >= pond.tiles.length);
+});
+
+test('drawWorld preserves the default command order with an empty feedback object', () => {
+  const built = sceneData.createScene(mapData.createSampleMeadow());
+  const ctx = createContext();
+  const seen = [];
+  const originalTile = renderer.drawTile;
+  const originalObject = renderer.drawObject;
+
+  renderer.drawTile = (_ctx, command) => seen.push(command.id);
+  renderer.drawObject = (_ctx, command) => seen.push(command.id);
+  try {
+    renderer.drawWorld(ctx, built, {});
+  } finally {
+    renderer.drawTile = originalTile;
+    renderer.drawObject = originalObject;
+  }
+
+  assert.deepEqual(seen, built.commands.map((command) => command.id));
+});

@@ -291,7 +291,9 @@ test('destroy removes input listeners and is idempotent', () => {
   assert.equal(handle.destroy(), false);
   assert.equal(canvas.listenerCount('pointerdown'), 0);
   assert.equal(canvas.listenerCount('wheel'), 0);
+  assert.equal(canvas.listenerCount('pointerleave'), 0);
   assert.equal(canvas.classList.contains('is-panning'), false);
+  assert.equal(handle.inspect().interaction.selectedId, null);
 });
 
 test('remounting destroys the previous listeners instead of duplicating them', () => {

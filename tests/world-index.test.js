@@ -46,6 +46,11 @@ test('public adapter exposes world modules and sample factory', () => {
   assert.equal(typeof world.renderer.drawWorld, 'function');
   assert.equal(typeof world.scene.createScene, 'function');
   assert.equal(typeof world.controller.createController, 'function');
+  assert.equal(typeof world.selectableTargets.buildSelectableTargets, 'function');
+  assert.equal(typeof world.hitTest.pickAtScenePoint, 'function');
+  assert.equal(typeof world.interactionState.createState, 'function');
+  assert.equal(typeof world.interaction.create, 'function');
+  assert.equal(typeof world.infoPanel.attach, 'function');
 });
 
 test('mount builds a sample scene and redraws without task modules', () => {

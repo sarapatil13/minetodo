@@ -91,6 +91,15 @@ function setup(options) {
   const viewport = camera.createViewport({ width: 320, height: 180 }, 1, SETTINGS);
   let cam = camera.createCamera(BOUNDS);
   const renderCalls = { render: 0, set: 0 };
+  const semantic = {
+    hover: [],
+    hoverEnd: 0,
+    taps: [],
+    navigate: [],
+    activate: 0,
+    clear: 0
+  };
+  const settings = Object.assign({ tapThresholds: { mouse: 6, touch: 10 } }, options || {});
   const input = cameraInput.attach(canvas, {
     getCamera: () => cam,
     setCamera(next) {
@@ -102,7 +111,25 @@ function setup(options) {
     requestRender: () => {
       renderCalls.render += 1;
     },
-    options: options || {}
+    onHoverMove(point, event, pointerType) {
+      semantic.hover.push({ point, pointerType });
+    },
+    onHoverEnd() {
+      semantic.hoverEnd += 1;
+    },
+    onTap(point, event, pointerType) {
+      semantic.taps.push({ point, pointerType });
+    },
+    onNavigate(direction) {
+      semantic.navigate.push(direction);
+    },
+    onActivate() {
+      semantic.activate += 1;
+    },
+    onClear() {
+      semantic.clear += 1;
+    },
+    options: settings
   });
 
   return {
@@ -110,6 +137,7 @@ function setup(options) {
     viewport,
     input,
     renderCalls,
+    semantic,
     getCamera: () => cam
   };
 }
@@ -284,6 +312,192 @@ test('keyboard zoom and reset operate on the focused canvas', () => {
   assert.deepEqual(reset.limits, initial.limits);
 });
 
+test('hover movement without a pressed pointer emits a semantic hover point', () => {
+  const context = setup();
+
+  context.canvas.dispatch('pointermove', {
+    pointerId: 8,
+    pointerType: 'mouse',
+    clientX: 120,
+    clientY: 90
+  });
+  context.canvas.dispatch('pointermove', {
+    pointerId: 8,
+    pointerType: 'mouse',
+    clientX: 140,
+    clientY: 100
+  });
+
+  assert.equal(context.semantic.hover.length, 2);
+  assert.deepEqual(context.semantic.hover[0].point, { x: 110, y: 70 });
+  assert.equal(context.semantic.hover[0].pointerType, 'mouse');
+  assert.equal(context.getCamera().focusX, 0);
+  assert.equal(context.getCamera().focusY, 0);
+});
+
+test('pointer leave emits hover end while no gesture is active', () => {
+  const context = setup();
+  context.canvas.dispatch('pointermove', {
+    pointerId: 9,
+    pointerType: 'mouse',
+    clientX: 100,
+    clientY: 100
+  });
+  context.canvas.dispatch('pointerleave', { pointerId: 9, pointerType: 'mouse' });
+  assert.equal(context.semantic.hoverEnd, 1);
+});
+
+test('a stationary pointer produces a tap but movement beyond the threshold does not', () => {
+  const stationary = setup();
+  stationary.canvas.dispatch('pointerdown', {
+    pointerId: 10,
+    pointerType: 'mouse',
+    button: 0,
+    clientX: 100,
+    clientY: 100
+  });
+  stationary.canvas.dispatch('pointerup', {
+    pointerId: 10,
+    pointerType: 'mouse',
+    clientX: 101,
+    clientY: 100
+  });
+  assert.equal(stationary.semantic.taps.length, 1);
+  assert.equal(stationary.semantic.taps[0].pointerType, 'mouse');
+
+  const dragged = setup();
+  dragged.canvas.dispatch('pointerdown', {
+    pointerId: 11,
+    pointerType: 'touch',
+    button: 0,
+    clientX: 100,
+    clientY: 100
+  });
+  dragged.canvas.dispatch('pointermove', {
+    pointerId: 11,
+    pointerType: 'touch',
+    clientX: 112,
+    clientY: 100
+  });
+  dragged.canvas.dispatch('pointerup', {
+    pointerId: 11,
+    pointerType: 'touch',
+    clientX: 100,
+    clientY: 100
+  });
+  assert.equal(dragged.semantic.taps.length, 0);
+});
+
+test('touch taps use their own threshold', () => {
+  const context = setup();
+  context.canvas.dispatch('pointerdown', {
+    pointerId: 12,
+    pointerType: 'touch',
+    button: 0,
+    clientX: 100,
+    clientY: 100
+  });
+  context.canvas.dispatch('pointermove', {
+    pointerId: 12,
+    pointerType: 'touch',
+    clientX: 108,
+    clientY: 100
+  });
+  context.canvas.dispatch('pointerup', {
+    pointerId: 12,
+    pointerType: 'touch',
+    clientX: 108,
+    clientY: 100
+  });
+  assert.equal(context.semantic.taps.length, 1);
+  assert.equal(context.semantic.taps[0].pointerType, 'touch');
+});
+
+test('pointercancel and lost pointer capture never produce taps', () => {
+  const cancelled = setup();
+  cancelled.canvas.dispatch('pointerdown', {
+    pointerId: 13,
+    pointerType: 'touch',
+    button: 0,
+    clientX: 100,
+    clientY: 100
+  });
+  cancelled.canvas.dispatch('pointercancel', { pointerId: 13, pointerType: 'touch', clientX: 100, clientY: 100 });
+  assert.equal(cancelled.semantic.taps.length, 0);
+
+  const lost = setup();
+  lost.canvas.dispatch('pointerdown', {
+    pointerId: 14,
+    pointerType: 'touch',
+    button: 0,
+    clientX: 100,
+    clientY: 100
+  });
+  lost.canvas.dispatch('lostpointercapture', { pointerId: 14, pointerType: 'touch', clientX: 100, clientY: 100 });
+  assert.equal(lost.semantic.taps.length, 0);
+});
+
+test('transitions into and out of two pointers never produce taps', () => {
+  const context = setup();
+  context.canvas.dispatch('pointerdown', {
+    pointerId: 15,
+    pointerType: 'touch',
+    button: 0,
+    clientX: 100,
+    clientY: 100
+  });
+  context.canvas.dispatch('pointerdown', {
+    pointerId: 16,
+    pointerType: 'touch',
+    button: 0,
+    clientX: 200,
+    clientY: 100
+  });
+  context.canvas.dispatch('pointermove', {
+    pointerId: 16,
+    pointerType: 'touch',
+    clientX: 240,
+    clientY: 100
+  });
+  context.canvas.dispatch('pointerup', {
+    pointerId: 16,
+    pointerType: 'touch',
+    clientX: 240,
+    clientY: 100
+  });
+  const afterPinch = context.getCamera();
+  context.canvas.dispatch('pointermove', {
+    pointerId: 15,
+    pointerType: 'touch',
+    clientX: 110,
+    clientY: 100
+  });
+  context.canvas.dispatch('pointerup', {
+    pointerId: 15,
+    pointerType: 'touch',
+    clientX: 110,
+    clientY: 100
+  });
+
+  assert.equal(context.semantic.taps.length, 0);
+  near(context.getCamera().focusX, afterPinch.focusX - 10 / (context.viewport.baseScale * afterPinch.zoom), 1e-6);
+});
+
+test('keyboard navigation keys emit semantics without disturbing zoom keys', () => {
+  const context = setup();
+  const initial = context.getCamera();
+
+  for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Enter', ' ', 'Escape']) {
+    const event = context.canvas.dispatch('keydown', { key });
+    assert.equal(event.defaultPrevented, true, key);
+  }
+
+  assert.deepEqual(context.semantic.navigate, [1, 1, -1, -1]);
+  assert.equal(context.semantic.activate, 1);
+  assert.equal(context.semantic.clear, 1);
+  assert.deepEqual(context.getCamera(), initial);
+});
+
 test('context menu and drag start are suppressed on the canvas', () => {
   const context = setup();
 
@@ -296,7 +510,7 @@ test('context menu and drag start are suppressed on the canvas', () => {
 
 test('destroy removes listeners and is idempotent', () => {
   const context = setup();
-  const types = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture', 'wheel', 'keydown', 'contextmenu', 'dragstart'];
+  const types = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'wheel', 'keydown', 'contextmenu', 'dragstart'];
   for (const type of types) {
     assert.ok(context.canvas.listenerCount(type) > 0, type);
   }
