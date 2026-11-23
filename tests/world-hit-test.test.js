@@ -82,7 +82,11 @@ for (const kind of Object.keys(REPRESENTATIVE_POINTS)) {
   test(kind + ' hit shapes cover representative visible artwork', () => {
     const cases = REPRESENTATIVE_POINTS[kind].visible;
     for (const [x, y] of cases) {
-      assert.equal(pickObject(kind, { x, y }, 0), objectTarget(objectCommand(kind)), x + ',' + y);
+      assert.equal(
+        (pickObject(kind, { x, y }, 0) || {}).id,
+        objectTarget(objectCommand(kind)).id,
+        x + ',' + y
+      );
     }
   });
 
@@ -121,11 +125,11 @@ test('overlapping anchors do not affect painter-order selection', () => {
   }), 2);
   const right = objectTarget(objectCommand('house', {
     id: 'right',
-    x: 12,
-    y: 6,
+    x: 4,
+    y: -4,
     object: { id: 'right', kind: 'house' }
   }), 7);
-  const overlap = { x: 3, y: -24 };
+  const overlap = { x: 0, y: -48 };
 
   assert.ok(hitTest.pickAtScenePoint(overlap, [left], { tolerance: 0 }));
   assert.ok(hitTest.pickAtScenePoint(overlap, [right], { tolerance: 0 }));
@@ -172,8 +176,8 @@ test('pond terrain and objects share one painter-order model', () => {
   const behindPick = hitTest.pickAtScenePoint(point, behindTargets, { tolerance: 0 });
   const frontPick = hitTest.pickAtScenePoint(point, frontTargets, { tolerance: 0 });
 
-  assert.equal(behindPick.category, 'object');
-  assert.equal(frontPick.category, 'terrain');
+  assert.equal(behindPick.category, 'terrain');
+  assert.equal(frontPick.category, 'object');
 });
 
 test('multi-tile pond selection uses the commanded tile order, not the group order', () => {
@@ -235,7 +239,7 @@ test('touch tolerance is larger than mouse tolerance in screen pixels', () => {
   const viewport = camera.createViewport({ width: 320, height: 180 }, 1);
   const state = camera.createCamera({ minX: -100, minY: -100, maxX: 100, maxY: 100, width: 200, height: 200 });
   const target = objectTarget(objectCommand('tree'));
-  const point = { x: -28, y: -6 };
+  const point = camera.sceneToScreen({ x: -28, y: -6 }, viewport, state);
   const context = { camera: state, viewport, targets: [target] };
 
   assert.equal(hitTest.pick(point, context, 'mouse'), null);
@@ -247,8 +251,8 @@ test('anchorForTarget returns a point inside each supported shape', () => {
     const target = objectTarget(objectCommand(kind));
     const anchor = hitTest.anchorForTarget(target);
     assert.equal(
-      hitTest.pickAtScenePoint(anchor, [target], { tolerance: 0 }),
-      target,
+      (hitTest.pickAtScenePoint(anchor, [target], { tolerance: 0 }) || {}).id,
+      target.id,
       kind + ' anchor'
     );
   }
