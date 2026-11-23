@@ -4,6 +4,7 @@ const tiles = require('../src/world/tiles.js');
 const mapData = require('../src/world/map.js');
 const grid = require('../src/world/grid.js');
 const validation = require('../src/world/mapValidation.js');
+const worldApi = require('../src/world/index.js');
 
 function sample() {
   return mapData.createSampleMeadow();
@@ -252,4 +253,19 @@ test('sample meadow can be adopted and queried without changing its data', () =>
   assert.equal(grid.getTilesByType(adopted, 'dirt').length, 8);
   assert.equal(grid.getTilesByType(adopted, 'water').length, 4);
   assert.equal(JSON.stringify(world), before);
+});
+
+test('public adapter exposes Phase 2.2 APIs without changing mount', () => {
+  assert.equal(typeof worldApi.mount, 'function');
+  assert.strictEqual(worldApi.tiles, tiles);
+  assert.strictEqual(worldApi.grid, grid);
+  assert.strictEqual(worldApi.validateMap, validation.validateMap);
+  assert.strictEqual(worldApi.assertValidMap, validation.assertValidMap);
+  assert.strictEqual(worldApi.WorldMapError, validation.WorldMapError);
+  assert.equal(Object.prototype.hasOwnProperty.call(worldApi, 'MAP_ERROR_CODES'), false);
+
+  const world = worldApi.createSampleMeadow();
+  assert.equal(world.tiles.length, 9);
+  assert.deepEqual(worldApi.validateMap(world), []);
+  assert.equal(worldApi.grid.indexOf(world, 6, 3), 39);
 });

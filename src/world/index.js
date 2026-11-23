@@ -14,7 +14,10 @@
 
   const isNode = typeof module === 'object' && module.exports;
   const coords = isNode ? require('./coords.js') : root.CQ.worldCoords;
+  const tiles = isNode ? require('./tiles.js') : root.CQ.worldTiles;
   const mapData = isNode ? require('./map.js') : root.CQ.worldMap;
+  const validation = isNode ? require('./mapValidation.js') : root.CQ.worldMapValidation;
+  const grid = isNode ? require('./grid.js') : root.CQ.worldGrid;
   const renderer = isNode ? require('./renderer.js') : root.CQ.worldRenderer;
   const sceneData = isNode ? require('./scene.js') : root.CQ.worldScene;
   const controller = isNode ? require('./controller.js') : root.CQ.worldController;
@@ -48,12 +51,17 @@
 
   return {
     coords,
+    tiles,
+    grid,
     map: mapData,
     renderer,
     scene: sceneData,
     controller,
     mount,
     createSampleMeadow: mapData.createSampleMeadow,
-    worldBounds: coords.sceneBounds
+    worldBounds: coords.sceneBounds,
+    validateMap: validation.validateMap,
+    assertValidMap: validation.assertValidMap,
+    WorldMapError: validation.WorldMapError
   };
 });
