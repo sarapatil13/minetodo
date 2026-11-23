@@ -23,6 +23,7 @@ Progress is saved in this browser using `localStorage`. This means it stays on t
 - All / To do / Completed filters.
 - A Canvas 2D isometric meadow renderer with terrain, trees, flowers, a pond and a starter house.
 - Canonical terrain definitions, aliases, immutable grid queries, and validated terrain updates.
+- Pointer-friendly camera panning and pointer-centred wheel/pinch zoom over the meadow.
 - Validated local storage, non-destructive v1 migration, and JSON backup/import.
 - Gentle approach: no missed-task penalties.
 
@@ -103,7 +104,9 @@ src/world/mapValidation.js   structured map validation
 src/world/grid.js            immutable grid queries and updates
 src/world/renderer.js        procedural Canvas 2D drawing primitives
 src/world/scene.js           draw-command composition and deterministic depth sorting
-src/world/controller.js      DPR-aware sizing, redraw scheduling and cleanup
+src/world/camera.js          camera state, viewport transforms, pan, zoom and constraints
+src/world/cameraInput.js     pointer, wheel, pinch and keyboard camera controls
+src/world/controller.js      DPR-aware sizing, camera lifecycle, redraw scheduling and cleanup
 src/world/index.js           public CQ.world.mount(...) adapter
 tests/*.test.js         dependency-free node:test suites
 ```
@@ -116,7 +119,7 @@ The meadow is a real isometric grid rather than static CSS artwork. Tiles use a 
 
 `CQ.world.mount(canvas)` renders a deterministic 11×9 meadow. It fits the complete scene bounds, including tree and house height and pond details, into the available canvas. The controller keeps the backing store in sync with CSS size and device pixel ratio, schedules a single redraw per frame on resize, and exposes `destroy()` for cleanup. Rendering is independent of task rules, storage, rewards, and import/export.
 
-Phase 2.1 is intentionally a rendering foundation. It does not include player movement, camera drag/zoom, free placement, inventory, crafting, shops, biomes, multiplayer, or cloud sync. The world is static and is not yet connected to task completions.
+Phase 2.1 was intentionally a rendering foundation. It did not include player movement, camera drag/zoom, free placement, inventory, crafting, shops, biomes, multiplayer, or cloud sync. The world is not yet connected to task completions.
 
 ## Phase 2.2 grid and tile system
 
@@ -144,6 +147,50 @@ Validation is strict about the required map structure, positive integer dimensio
 
 Phase 2.2 is still a model-layer milestone. It does not add movement, placement tools, terrain editing in the UI, task-to-world rewards, biomes, inventory, crafting, or persistence of world maps. The renderer still draws the legacy `grass`, `path`, and `pond` visuals; canonical `dirt`, `water`, `stone`, and `sand` IDs validate correctly but currently fall back to the renderer's grass palette until a later rendering phase gives them dedicated artwork.
 
+## Phase 2.3 camera and navigation
+
+Phase 2.3 adds a view-layer camera without changing world data, terrain definitions, grid APIs, scene composition, or renderer primitives. The renderer still receives the same scene commands; the controller changes only the canvas transform that positions those commands on screen.
+
+### Coordinate spaces
+
+- **Grid space** is the map's integer or fractional `(col, row)` coordinates.
+- **Scene space** is the isometric pixel output of `coords.gridToScreen()`, before camera movement.
+- **CSS screen space** is canvas-local CSS pixels. Pointer input always uses this space.
+- **Backing store space** is device pixels. It is still handled only by the existing DPR transform.
+
+The camera stores `focusX`, `focusY`, and `zoom`. `focusX`/`focusY` are scene-space coordinates at the center of the camera's content rectangle, so zoom is preserved across resize. The default focus is the center of `scene.bounds` and the default zoom is `1`. At that state the composed transform is mathematically identical to the Phase 2.1 fit transform, so desktop, tablet, and mobile screenshots remain unchanged.
+
+### Zoom configuration
+
+Zoom configuration is part of the camera state as an immutable `limits` object: `{ minZoom, maxZoom, zoomStep }`. Defaults are `0.6`, `3`, and `1.15`. Pass custom values to `CQ.world.mount(canvas, { camera: { minZoom, maxZoom, zoomStep } })` or to `CQ.world.camera.createCamera(bounds, options)`. The same object is used by `createCamera()`, `cloneCamera()`, `resetCamera()`, `normalizeCamera()`, `zoomCamera()`, and `clampCamera()`; operations after creation do not accept a second, conflicting set of limits. Invalid values fall back to defaults, reversed bounds fall back to defaults, and the default zoom is clamped into the configured range.
+
+### Public camera API
+
+`CQ.world.mount(...)` is unchanged, and `inspect().view` still contains exactly `{ x, y, scale }`. Phase 2.3 adds `CQ.world.camera` with:
+
+- `createCamera(bounds, options)`, `cloneCamera(camera)`, `resetCamera(camera, bounds)`, and `normalizeCamera(camera, bounds, viewport)`.
+- `createViewport(size, baseScale, settings)` and `viewTransform(viewport, camera)`.
+- `sceneToScreen(point, viewport, camera)` and `screenToScene(point, viewport, camera)`.
+- `gridToScreen(col, row, viewport, camera, sceneOptions)`, `screenToGrid(x, y, viewport, camera, sceneOptions)`, and `screenToTile(x, y, viewport, camera, sceneOptions)`.
+- `panCamera(camera, deltaCss, viewport, bounds)`, `zoomCamera(camera, factor, anchorCss, viewport, bounds)`, and `clampCamera(camera, bounds, viewport)`.
+
+Camera functions return new frozen state objects and never mutate their inputs. `inspect()` additionally exposes `camera` and `viewport` snapshots for diagnostics.
+
+### Controls and constraints
+
+- Drag with mouse, pen, or one finger to pan. Pointer capture is used where available, and lost capture is handled explicitly.
+- Use the wheel to zoom around the pointer. Trackpad pinch/wheel deltas are normalized across pixel, line, and page modes.
+- Use two fingers to pinch-zoom and pan by midpoint movement.
+- When the canvas has keyboard focus, `+`/`=` zoom in, `-`/`_` zoom out, and `0` resets. No visible zoom controls were added.
+
+Zooming normally keeps the scene point under the pointer fixed. Viewport constraints take priority: after a zoom or pan, the camera is clamped so some world remains visible. If anchor preservation conflicts with a world boundary, the camera moves to the closest legal position and the anchor shifts. When a world is smaller than the content rectangle on an axis, that axis stays centered and does not pan; this also means pointer-anchor preservation is intentionally skipped for small worlds. Zooming at an edge keeps at least a small overlap of the world inside the viewport.
+
+The controller establishes a valid viewport and backing store before attaching input. Input getters resynchronize against the current canvas size, so wheel and pointer events never use a stale viewport. Resize preserves the focused scene point and zoom, then reapplies constraints. One input handle owns all listeners, and `destroy()` removes them idempotently without adding a second animation loop.
+
+### Scope
+
+Phase 2.3 does not add player movement, tile interaction, terrain editing, placement, world-map persistence, camera persistence, task rewards, rotation, minimaps, visible zoom buttons, dependencies, or a build system. It continues to run from `file://` with classic scripts.
+
 ## Tests
 
 Run the complete automated suite from this directory:
@@ -152,7 +199,7 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, and terrain updates.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, pointer input, resize handling, and controller cleanup.
 
 ## MVP boundary
 
