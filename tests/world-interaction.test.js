@@ -99,7 +99,7 @@ test('hover is recomputed after a camera change using the cached pointer', () =>
   context.handle.handleHoverMove(point, {}, 'mouse');
   assert.equal(context.handle.inspect().hoverId, houseId);
 
-  const panned = camera.panCamera(context.getCamera(), { x: 35, y: -20 }, context.viewport, null);
+  const panned = camera.panCamera(context.getCamera(), { x: 100, y: -100 }, context.viewport, null);
   context.setCamera(panned);
   context.handle.refreshHover();
 

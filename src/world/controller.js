@@ -6,13 +6,14 @@
   const sceneData = isNode ? require('./scene.js') : root.CQ.worldScene;
   const camera = isNode ? require('./camera.js') : root.CQ.worldCamera;
   const cameraInput = isNode ? require('./cameraInput.js') : root.CQ.worldCameraInput;
-  const api = factory(root, coords, mapData, renderer, sceneData, camera, cameraInput);
+  const interaction = isNode ? require('./interaction.js') : root.CQ.worldInteraction;
+  const api = factory(root, coords, mapData, renderer, sceneData, camera, cameraInput, interaction);
   if (isNode) {
     module.exports = api;
   } else {
     (root.CQ = root.CQ || {}).worldController = api;
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (root, coords, mapData, renderer, sceneData, camera, cameraInput) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (root, coords, mapData, renderer, sceneData, camera, cameraInput, interaction) {
   'use strict';
 
   const MAX_DPR = 3;
@@ -72,6 +73,7 @@
     // creation and every later operation reads it from this single object.
     let cameraState = camera.createCamera(world.bounds, settings.camera || {});
     let cameraInputHandle = null;
+    let interactionHandle = null;
     let destroyed = false;
     let frame = 0;
     let observer = null;
@@ -118,6 +120,11 @@
       const view = current.view;
       const metrics = resizeBackingStore(size);
 
+      // Hover is screen-position state. A resize or camera clamp can move the
+      // target under the cached pointer, so refresh before drawing without
+      // scheduling another frame from inside the draw itself.
+      if (interactionHandle) interactionHandle.refreshHover({ scheduleRender: false });
+
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, metrics.width, metrics.height);
       ctx.setTransform(metrics.dpr, 0, 0, metrics.dpr, 0, 0);
@@ -126,7 +133,7 @@
       ctx.save();
       ctx.translate(view.x, view.y);
       ctx.scale(view.scale, view.scale);
-      renderer.drawWorld(ctx, world);
+      renderer.drawWorld(ctx, world, interactionHandle ? interactionHandle.feedback() : null);
       ctx.restore();
 
       lastMetrics = metrics;
@@ -195,11 +202,45 @@
     const initial = syncViewport();
     lastMetrics = resizeBackingStore(initial.size);
 
+    // Interaction owns semantic hover/tap/keyboard decisions; cameraInput
+    // remains the only owner of canvas event listeners.
+    interactionHandle = interaction && typeof interaction.create === 'function'
+      ? interaction.create(canvas, {
+        scene: world,
+        infoPanel: settings.infoPanel,
+        targetOptions: settings.targetOptions,
+        toleranceCss: settings.toleranceCss,
+        getCamera: () => cameraState,
+        getViewport: currentViewport,
+        requestRender
+      })
+      : null;
+
     cameraInputHandle = cameraInput.attach(canvas, {
       getCamera: () => cameraState,
       setCamera: applyCamera,
       getViewport: currentViewport,
-      getBounds: () => world.bounds
+      getBounds: () => world.bounds,
+      requestRender,
+      options: settings,
+      onHoverMove: (point, event, pointerType) => {
+        if (interactionHandle) interactionHandle.handleHoverMove(point, event, pointerType);
+      },
+      onHoverEnd: (event) => {
+        if (interactionHandle) interactionHandle.handleHoverEnd(event);
+      },
+      onTap: (point, event, pointerType) => {
+        if (interactionHandle) interactionHandle.handleTap(point, event, pointerType);
+      },
+      onNavigate: (direction, event) => {
+        if (interactionHandle) interactionHandle.handleNavigate(direction, event);
+      },
+      onActivate: (event) => {
+        if (interactionHandle) interactionHandle.handleActivate(event);
+      },
+      onClear: (event) => {
+        if (interactionHandle) interactionHandle.handleClear(event);
+      }
     });
 
     if (root && typeof root.addEventListener === 'function') {
@@ -228,7 +269,8 @@
             ? { x: lastView.x, y: lastView.y, scale: lastView.scale }
             : null,
           viewport: lastViewport,
-          camera: camera.cloneCamera(cameraState)
+          camera: camera.cloneCamera(cameraState),
+          interaction: interactionHandle ? interactionHandle.inspect() : null
         };
       },
       destroy() {
@@ -238,6 +280,9 @@
           cameraInputHandle.destroy();
         }
         cameraInputHandle = null;
+        if (interactionHandle && typeof interactionHandle.destroy === 'function') {
+          interactionHandle.destroy();
+        }
         if (frame && root && typeof root.cancelAnimationFrame === 'function') {
           root.cancelAnimationFrame(frame);
         }

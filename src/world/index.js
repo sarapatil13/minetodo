@@ -21,6 +21,15 @@
   const renderer = isNode ? require('./renderer.js') : root.CQ.worldRenderer;
   const sceneData = isNode ? require('./scene.js') : root.CQ.worldScene;
   const camera = isNode ? require('./camera.js') : root.CQ.worldCamera;
+  const hitTest = isNode ? require('./hitTest.js') : root.CQ.worldHitTest;
+  const selectableTargets = isNode
+    ? require('./selectableTargets.js')
+    : root.CQ.worldSelectableTargets;
+  const interactionState = isNode
+    ? require('./interactionState.js')
+    : root.CQ.worldInteractionState;
+  const infoPanel = isNode ? require('./infoPanel.js') : root.CQ.worldInfoPanel;
+  const interaction = isNode ? require('./interaction.js') : root.CQ.worldInteraction;
   const controller = isNode ? require('./controller.js') : root.CQ.worldController;
 
   function mount(canvas, options) {
@@ -58,6 +67,11 @@
     renderer,
     scene: sceneData,
     camera,
+    hitTest,
+    selectableTargets,
+    interactionState,
+    infoPanel,
+    interaction,
     controller,
     mount,
     createSampleMeadow: mapData.createSampleMeadow,
