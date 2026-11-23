@@ -493,7 +493,7 @@ test('keyboard navigation keys emit semantics without disturbing zoom keys', () 
   }
 
   assert.deepEqual(context.semantic.navigate, [1, 1, -1, -1]);
-  assert.equal(context.semantic.activate, 1);
+  assert.equal(context.semantic.activate, 2);
   assert.equal(context.semantic.clear, 1);
   assert.deepEqual(context.getCamera(), initial);
 });

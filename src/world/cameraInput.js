@@ -12,6 +12,13 @@
 
   const WHEEL_SENSITIVITY = 0.0015;
   const PAN_CLASS = 'is-panning';
+  const DEFAULT_TAP_THRESHOLDS = Object.freeze({ mouse: 6, touch: 10 });
+  const NAVIGATION_KEYS = Object.freeze({
+    ArrowRight: 'forward',
+    ArrowDown: 'forward',
+    ArrowLeft: 'backward',
+    ArrowUp: 'backward'
+  });
 
   function clonePoint(point) {
     return { x: point.x, y: point.y };
@@ -81,11 +88,25 @@
       : camera.DEFAULT_ZOOM_STEP;
   }
 
+  function tapThresholds(settings) {
+    const values = settings && settings.tapThresholds;
+    return Object.freeze({
+      mouse: values && Number.isFinite(values.mouse) && values.mouse >= 0
+        ? values.mouse
+        : DEFAULT_TAP_THRESHOLDS.mouse,
+      touch: values && Number.isFinite(values.touch) && values.touch >= 0
+        ? values.touch
+        : DEFAULT_TAP_THRESHOLDS.touch
+    });
+  }
+
   function attach(canvas, handlers) {
     const inputHandlers = handlers || {};
     const settings = inputHandlers.options || {};
     const className = typeof settings.panningClass === 'string' ? settings.panningClass : PAN_CLASS;
+    const thresholds = tapThresholds(settings);
     const pointers = new Map();
+    const gestures = new Map();
     let lastSingle = null;
     let lastMidpoint = null;
     let lastDistance = null;
@@ -109,6 +130,34 @@
 
     function requestRender() {
       if (typeof inputHandlers.requestRender === 'function') inputHandlers.requestRender();
+    }
+
+    function emitHoverMove(point, event, pointerType) {
+      if (typeof inputHandlers.onHoverMove === 'function') {
+        inputHandlers.onHoverMove(point, event, pointerType);
+      }
+    }
+
+    function emitHoverEnd(event) {
+      if (typeof inputHandlers.onHoverEnd === 'function') inputHandlers.onHoverEnd(event);
+    }
+
+    function emitTap(point, event, pointerType) {
+      if (typeof inputHandlers.onTap === 'function') {
+        inputHandlers.onTap(point, event, pointerType);
+      }
+    }
+
+    function emitNavigate(direction, event) {
+      if (typeof inputHandlers.onNavigate === 'function') inputHandlers.onNavigate(direction, event);
+    }
+
+    function emitActivate(event) {
+      if (typeof inputHandlers.onActivate === 'function') inputHandlers.onActivate(event);
+    }
+
+    function emitClear(event) {
+      if (typeof inputHandlers.onClear === 'function') inputHandlers.onClear(event);
     }
 
     function resetBaselines() {
@@ -141,7 +190,18 @@
 
       prevent(event);
       const id = pointerId(event);
-      pointers.set(id, localPoint(canvas, event));
+      const point = localPoint(canvas, event);
+      if (pointers.size === 0) emitHoverEnd(event);
+      pointers.set(id, point);
+      gestures.set(id, {
+        pointerType: event.pointerType || 'mouse',
+        start: clonePoint(point),
+        moved: false,
+        multi: false
+      });
+      if (pointers.size > 1) {
+        for (const gesture of gestures.values()) gesture.multi = true;
+      }
       capture(canvas, id);
       resetBaselines();
       updateCursor();
@@ -151,11 +211,25 @@
     function onPointerMove(event) {
       if (destroyed) return;
       const id = pointerId(event);
-      if (!pointers.has(id)) return;
+      if (!pointers.has(id)) {
+        if (pointers.size === 0) {
+          const pointerType = event.pointerType || 'mouse';
+          emitHoverMove(localPoint(canvas, event), event, pointerType);
+        }
+        return;
+      }
 
       prevent(event);
       const point = localPoint(canvas, event);
       pointers.set(id, point);
+
+      const gesture = gestures.get(id);
+      if (gesture) {
+        const limit = thresholds[gesture.pointerType] || thresholds.mouse;
+        if (Math.hypot(point.x - gesture.start.x, point.y - gesture.start.y) > limit) {
+          gesture.moved = true;
+        }
+      }
 
       if (pointers.size === 1) {
         if (lastSingle) {
@@ -206,7 +280,14 @@
       if (!pointers.has(id)) return;
 
       prevent(event);
+      const gesture = gestures.get(id);
+      const shouldTap = event.type === 'pointerup' && gesture &&
+        !gesture.moved && !gesture.multi && pointers.size === 1 &&
+        !(event.pointerType === 'mouse' && Number.isFinite(event.button) && event.button !== 0);
+      if (shouldTap) emitTap(localPoint(canvas, event), event, gesture.pointerType);
+
       pointers.delete(id);
+      gestures.delete(id);
       release(canvas, id);
       resetBaselines();
       updateCursor();
@@ -218,9 +299,15 @@
       const id = pointerId(event);
       if (!pointers.has(id)) return;
       pointers.delete(id);
+      gestures.delete(id);
       resetBaselines();
       updateCursor();
       requestRender();
+    }
+
+    function onPointerLeave(event) {
+      if (destroyed || pointers.size > 0) return;
+      emitHoverEnd(event);
     }
 
     function onWheel(event) {
@@ -242,6 +329,16 @@
     function onKeyDown(event) {
       if (destroyed || settings.enableKeyboard === false) return;
       const key = event.key;
+
+      const navigation = NAVIGATION_KEYS[key];
+      if (navigation || key === 'Enter' || key === ' ' || key === 'Spacebar' || key === 'Escape') {
+        prevent(event);
+        if (navigation) emitNavigate(navigation === 'forward' ? 1 : -1, event);
+        else if (key === 'Enter' || key === ' ' || key === 'Spacebar') emitActivate(event);
+        else emitClear(event);
+        return;
+      }
+
       if (key !== '+' && key !== '=' && key !== '-' && key !== '_' && key !== '0') return;
 
       prevent(event);
@@ -276,6 +373,7 @@
       ['pointerup', onPointerEnd, false],
       ['pointercancel', onPointerEnd, false],
       ['lostpointercapture', onLostPointerCapture, false],
+      ['pointerleave', onPointerLeave, false],
       ['wheel', onWheel, { passive: false }],
       ['keydown', onKeyDown, false],
       ['contextmenu', suppress, false],
@@ -306,6 +404,7 @@
         const ids = [...pointers.keys()];
         for (const id of ids) release(canvas, id);
         pointers.clear();
+        gestures.clear();
         resetBaselines();
         if (hasClass(canvas, className)) updateCursor();
         return true;
@@ -313,5 +412,5 @@
     };
   }
 
-  return { attach };
+  return { attach, DEFAULT_TAP_THRESHOLDS };
 });
