@@ -2,6 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const config = require('../src/progressionConfig.js');
 const progression = require('../src/world/progression.js');
+const mapData = require('../src/world/map.js');
+const tiles = require('../src/world/tiles.js');
+const coords = require('../src/world/coords.js');
+const validation = require('../src/world/mapValidation.js');
+const sceneData = require('../src/world/scene.js');
 
 const STAGE_THRESHOLDS = [0, 100, 500, 1400];
 const FEATURE_THRESHOLDS = [100, 250, 500, 900, 1400];
@@ -128,4 +133,106 @@ test('crossing multiple milestones at once reports every unlocked feature', () =
   ]);
   assert.equal(result.stage.id, 'thriving-village');
   assert.equal(result.nextUnlock, null);
+});
+
+test('composing at zero XP preserves the exact base meadow', () => {
+  const base = mapData.createSampleMeadow();
+  const before = JSON.stringify(base);
+  const composed = progression.composeProgressionMap(base, 0);
+  assert.equal(JSON.stringify(composed), before);
+  assert.equal(JSON.stringify(base), before);
+});
+
+test('every stage and milestone produces a valid deterministic map', () => {
+  for (const xp of [0, 100, 250, 500, 900, 1400, 5000, -5, NaN]) {
+    const base = mapData.createSampleMeadow();
+    const before = JSON.stringify(base);
+    const first = progression.composeProgressionMap(base, xp);
+    const second = progression.composeProgressionMap(base, xp);
+
+    assert.deepEqual(validation.validateMap(first), [], xp + ' valid');
+    assert.equal(JSON.stringify(first), JSON.stringify(second), xp + ' deterministic');
+    assert.equal(JSON.stringify(base), before, xp + ' base unchanged');
+  }
+});
+
+test('generated IDs are stable, unique and namespaced at the highest stage', () => {
+  const base = mapData.createSampleMeadow();
+  const composed = progression.composeProgressionMap(base, 1400);
+  const generated = composed.objects.filter((object) => object.id.indexOf('progression-') === 0);
+  const ids = composed.objects.map((object) => object.id);
+
+  assert.equal(generated.length, 15);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const object of generated) {
+    assert.ok(object.id.indexOf('progression-') === 0);
+    assert.ok(['tree', 'house', 'flowers', 'bush', 'reeds', 'fence'].includes(object.kind));
+    assert.equal(object.metadata.source, 'progression');
+    assert.equal(object.metadata.minXp > 0, true);
+  }
+  for (const baseObject of base.objects) {
+    const match = composed.objects.find((object) => object.id === baseObject.id);
+    assert.deepEqual(match, baseObject);
+  }
+});
+
+test('generated objects never share an anchor with a base or generated object', () => {
+  const composed = progression.composeProgressionMap(mapData.createSampleMeadow(), 1400);
+  const cells = new Set();
+  for (const object of composed.objects) {
+    const key = object.col + ',' + object.row;
+    assert.equal(cells.has(key), false, key + ' is unique');
+    cells.add(key);
+  }
+  assert.equal(cells.size, composed.objects.length);
+});
+
+test('progression tile patches only convert grass to deterministic path tiles', () => {
+  const base = mapData.createSampleMeadow();
+  const composed = progression.composeProgressionMap(base, 1400);
+  const changed = [];
+  for (let row = 0; row < base.height; row += 1) {
+    for (let col = 0; col < base.width; col += 1) {
+      const before = base.tiles[row][col];
+      const after = composed.tiles[row][col];
+      if (before.type !== after.type || before.variant !== after.variant) {
+        changed.push(col + ',' + row);
+        assert.equal(before.type, 'grass');
+        assert.equal(after.type, 'path');
+        assert.equal(
+          after.variant,
+          tiles.variantFor(col, row, 3, tiles.getTerrainDefinition('path').variants)
+        );
+      }
+    }
+  }
+  assert.deepEqual(changed, ['7,4', '6,6', '8,7']);
+});
+
+test('scene bounds remain identical across all stages and milestones', () => {
+  const base = mapData.createSampleMeadow();
+  const baseBounds = coords.sceneBounds(base);
+  for (const xp of [0, 100, 250, 500, 900, 1400, 5000]) {
+    const scene = progression.createProgressionScene(base, xp);
+    assert.deepEqual(scene.bounds, baseBounds, xp + ' bounds');
+  }
+});
+
+test('progression scenes preserve base command IDs and add generated object IDs', () => {
+  const base = mapData.createSampleMeadow();
+  const baseScene = sceneData.createScene(base);
+  const fullScene = progression.createProgressionScene(base, 1400);
+  const baseIds = baseScene.commands.map((command) => command.id);
+  const fullIds = fullScene.commands.map((command) => command.id);
+
+  for (const id of baseIds) assert.ok(fullIds.includes(id), id + ' preserved');
+  assert.ok(fullIds.includes('object:progression-annex-house'));
+  assert.ok(fullIds.includes('object:progression-canopy-tree'));
+  assert.equal(new Set(fullIds).size, fullIds.length);
+});
+
+test('composing from an invalid base map fails without returning a partial map', () => {
+  const invalid = mapData.createSampleMeadow();
+  invalid.objects[0].id = '';
+  assert.throws(() => progression.composeProgressionMap(invalid, 1400), /Invalid base map/);
 });
