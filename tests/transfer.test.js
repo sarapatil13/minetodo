@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const rules = require('../src/rules.js');
 const storage = require('../src/storage.js');
+const worldState = require('../src/worldState.js');
 const transfer = require('../src/transfer.js');
 
 const NOW = '2026-11-24T12:00:00.000Z';
@@ -13,6 +14,23 @@ function populatedState() {
   state.tasks.push(made.task);
   const done = rules.completeTask(state, 't1', { entryId: 'e1', now: NOW });
   return done.state;
+}
+
+function populatedWorldState() {
+  const state = worldState.emptyState();
+  state.createdAt = NOW;
+  state.updatedAt = NOW;
+  state.objects.placed.push({
+    id: 'user:beehive',
+    kind: 'flowers',
+    col: 4,
+    row: 4,
+    salt: 21
+  });
+  state.terrain.push({ col: 5, row: 5, type: 'path', salt: 9 });
+  const checked = worldState.validateState(state);
+  assert.equal(checked.ok, true, checked.issues.map((issue) => issue.message).join('; '));
+  return checked.state;
 }
 
 test('exportState writes the expected envelope and valid JSON', () => {
@@ -108,6 +126,88 @@ test('export and import normalize task titles without mutating the source state'
   assert.equal(result.ok, true);
   assert.equal(result.state.tasks[0].title, 'Padded title');
   assert.equal(state.tasks[0].title, '  Padded title  ');
+});
+
+test('exportState additively includes a valid world state', () => {
+  const state = populatedState();
+  const savedWorld = populatedWorldState();
+  const text = transfer.exportState(state, { now: NOW, worldState: savedWorld });
+  const payload = JSON.parse(text);
+
+  assert.equal(payload.app, 'CozyQuest');
+  assert.equal(payload.schemaVersion, 2);
+  assert.deepEqual(payload.state, state);
+  assert.deepEqual(payload.world, savedWorld);
+  assert.equal('xp' in payload, false);
+  assert.equal('completed' in payload, false);
+});
+
+test('exportState refuses an invalid explicitly supplied world state', () => {
+  const state = populatedState();
+  const invalid = { ...worldState.emptyState(), schemaVersion: 99 };
+  assert.throws(() => transfer.exportState(state, { worldState: invalid }), /Cannot export invalid world state/);
+});
+
+test('parseImport treats an absent world field as task-only', () => {
+  const text = transfer.exportState(populatedState(), { now: NOW });
+  const result = transfer.parseImport(text, { now: NOW });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.hasWorld, false);
+  assert.equal(result.worldState, undefined);
+  assert.deepEqual(result.worldIssues, []);
+  assert.deepEqual(result.summary, {
+    taskCount: 1,
+    doneCount: 1,
+    ledgerCount: 1,
+    xp: 54,
+    coins: 16,
+    resources: { wood: 2, stone: 0, iron: 1 },
+    exportedAt: NOW
+  });
+});
+
+test('parseImport restores an explicitly supplied valid world state', () => {
+  const savedWorld = populatedWorldState();
+  const text = transfer.exportState(populatedState(), { now: NOW, worldState: savedWorld });
+  const result = transfer.parseImport(text, { now: NOW });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.hasWorld, true);
+  assert.deepEqual(result.worldState, savedWorld);
+  assert.deepEqual(result.worldIssues, []);
+  assert.equal(result.worldStructural, false);
+});
+
+test('parseImport accepts a world state with skippable invalid records', () => {
+  const world = worldState.emptyState();
+  world.createdAt = NOW;
+  world.updatedAt = NOW;
+  world.objects.placed.push(
+    { id: 'user:ok', kind: 'bush', col: 4, row: 4, salt: 1 },
+    { id: 'user:bad', kind: 'dragon', col: 5, row: 5, salt: 1 }
+  );
+  const payload = JSON.parse(transfer.exportState(populatedState(), { now: NOW }));
+  payload.world = world;
+  const result = transfer.parseImport(JSON.stringify(payload), { now: NOW });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.hasWorld, true);
+  assert.equal(result.worldState.objects.placed.length, 1);
+  assert.ok(result.worldIssues.some((issue) => issue.code === worldState.ISSUE_CODES.UNSUPPORTED_KIND));
+});
+
+test('parseImport rejects an invalid explicit world state before returning task state', () => {
+  const state = populatedState();
+  const payload = JSON.parse(transfer.exportState(state, { now: NOW }));
+  payload.world = { ...worldState.emptyState(), schemaVersion: 99 };
+
+  const result = transfer.parseImport(JSON.stringify(payload), { now: NOW });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Invalid world backup contents/);
+  assert.equal(result.state, undefined);
+  assert.equal(result.hasWorld, undefined);
 });
 
 test('byteLength counts UTF-8 bytes', () => {

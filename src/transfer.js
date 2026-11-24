@@ -11,6 +11,7 @@
   const isNode = typeof module === 'object' && module.exports;
   const rules = isNode ? require('./rules.js') : root.CQ.rules;
   const storage = isNode ? require('./storage.js') : root.CQ.storage;
+  const worldState = isNode ? require('./worldState.js') : null;
 
   const APP_NAME = 'CozyQuest';
   const MAX_BYTES = 1024 * 1024;
@@ -19,16 +20,44 @@
     return new TextEncoder().encode(text).length;
   }
 
+  function issueText(issue) {
+    if (typeof issue === 'string') return issue;
+    if (issue && typeof issue.message === 'string') return issue.message;
+    return String(issue);
+  }
+
+  // In classic-script mode worldState is loaded after transfer.js, so it is
+  // resolved when export/import runs rather than at script evaluation time.
+  function worldValidator(options) {
+    if (options.validateWorldState) return options.validateWorldState;
+    if (isNode) return worldState.validateState;
+    const module = root.CQ && root.CQ.worldState;
+    if (!module || typeof module.validateState !== 'function') {
+      throw new Error('World state module is unavailable');
+    }
+    return module.validateState;
+  }
+
   function exportState(state, options = {}) {
     const validate = options.validateState || storage.validateState;
     const checked = validate(state);
     if (!checked.ok) throw new Error('Cannot export invalid state: ' + checked.issues.join('; '));
-    return JSON.stringify({
+
+    const envelope = {
       app: APP_NAME,
       schemaVersion: storage.SCHEMA_VERSION,
       exportedAt: options.now || new Date().toISOString(),
       state: checked.state
-    }, null, 2);
+    };
+    if (Object.prototype.hasOwnProperty.call(options, 'worldState')) {
+      const checkedWorld = worldValidator(options)(options.worldState);
+      if (!checkedWorld.ok) {
+        throw new Error('Cannot export invalid world state: ' +
+          checkedWorld.issues.map(issueText).join('; '));
+      }
+      envelope.world = checkedWorld.state;
+    }
+    return JSON.stringify(envelope, null, 2);
   }
 
   function parseImport(text, options = {}) {
@@ -60,6 +89,27 @@
     const checked = validate(payload.state);
     if (!checked.ok) return { ok: false, error: 'Invalid backup contents: ' + checked.issues.join('; ') };
 
+    // An absent world field means "leave the existing world alone". A present
+    // world field is an explicit instruction and must be valid before the
+    // caller confirms or writes anything.
+    const hasWorld = Object.prototype.hasOwnProperty.call(payload, 'world');
+    let worldResult = null;
+    if (hasWorld) {
+      let checkedWorld;
+      try {
+        checkedWorld = worldValidator(options)(payload.world);
+      } catch (error) {
+        return { ok: false, error: 'Invalid world backup contents: ' + error.message };
+      }
+      if (!checkedWorld.ok) {
+        return {
+          ok: false,
+          error: 'Invalid world backup contents: ' + checkedWorld.issues.map(issueText).join('; ')
+        };
+      }
+      worldResult = checkedWorld;
+    }
+
     const totals = rules.computeTotals(checked.state);
     const summary = {
       taskCount: checked.state.tasks.length,
@@ -70,7 +120,16 @@
       resources: totals.resources,
       exportedAt: payload.exportedAt || now
     };
-    return { ok: true, state: checked.state, summary, issues: checked.issues };
+    return Object.freeze({
+      ok: true,
+      state: checked.state,
+      summary,
+      issues: checked.issues,
+      hasWorld,
+      worldState: worldResult ? worldResult.state : undefined,
+      worldIssues: worldResult ? worldResult.issues.slice() : [],
+      worldStructural: worldResult ? worldResult.structural : false
+    });
   }
 
   return { APP_NAME, MAX_BYTES, exportState, parseImport, byteLength };
