@@ -326,9 +326,25 @@ body {
 .world-footer {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 10px 3px 0;
   color: #829087;
   font-size: 9px;
+}
+
+.world-reset {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.world-reset:hover {
+  color: #547c60;
 }
 
 .side-column {

@@ -32,7 +32,7 @@
           </aside>
           <div class="world-caption">A peaceful place to begin <span>🌼</span></div>
         </div>
-        <div class="world-footer"><span>🏡 Home plot</span><span>🔒 New biomes unlock as you grow</span></div>
+        <div class="world-footer"><span>🏡 Home plot</span><button type="button" class="world-reset" id="reset-world">Reset world changes</button><span>🔒 New biomes unlock as you grow</span></div>
       </article>
       <aside class="side-column">
         <article class="progress-card"><div class="card-title"><span>YOUR PROGRESS</span><span>✨</span></div><div class="level-line"><b id="level-name">Seedling</b><span id="level-progress-text">0 / 100 XP</span></div><div class="progress-track"><div id="xp-bar" class="progress-fill"></div></div><p class="muted" id="next-level">100 XP to Sprout</p><div id="world-growth" class="world-growth" hidden><div class="world-growth-heading"><b id="world-stage-name">Starting Meadow</b><span id="world-stage-xp">0 XP</span></div><p id="world-next-unlock" class="world-growth-next">Next world feature at 100 XP: wildflowers appear</p><div id="world-growth-features" class="world-growth-features">The meadow is resting.</div><div id="world-growth-event" class="world-growth-event" hidden></div></div><p id="world-progress-status" class="sr-only" role="status" aria-live="polite"></p><div class="stat-grid"><div><b id="wood">0</b><small>🪵 Wood</small></div><div><b id="stone">0</b><small>🪨 Stone</small></div><div><b id="iron">0</b><small>⛏️ Iron</small></div></div></article>
@@ -68,11 +68,14 @@
 <script src="src/world/hitTest.js"></script>
 <script src="src/world/renderer.js"></script>
 <script src="src/world/selectableTargets.js"></script>
+<script src="src/world/content.js"></script>
 <script src="src/world/interactionState.js"></script>
 <script src="src/world/infoPanel.js"></script>
 <script src="src/world/cameraInput.js"></script>
 <script src="src/world/interaction.js"></script>
 <script src="src/world/controller.js"></script>
 <script src="src/world/index.js"></script>
+<script src="src/worldState.js"></script>
+<script src="src/stateCommit.js"></script>
 <script src="app.js"></script>
 </body></html>

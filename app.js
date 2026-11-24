@@ -5,9 +5,18 @@ const storage = window.CQ.storage;
 const transfer = window.CQ.transfer;
 const world = window.CQ.world;
 const worldProgression = world.progression;
+const worldStateModule = window.CQ.worldState;
+const stateCommit = window.CQ.stateCommit;
 const progressionConfig = window.CQ.progressionConfig;
 const baseWorldMap = world.createSampleMeadow();
 let worldHandle = null;
+let savedWorldState = null;
+let recoveryPending = false;
+let startupRecovery = null;
+
+function currentXp() {
+  return rules.computeTotals(state).xp;
+}
 
 const store = {
   getItem: (key) => localStorage.getItem(key),
@@ -16,10 +25,23 @@ const store = {
   keys: () => Object.keys(localStorage)
 };
 
+// A failed rollback leaves a durable marker. Replay it before any domain is
+// read so a reload finishes the recovery instead of loading mixed state.
+startupRecovery = stateCommit.recover(store);
+if (!startupRecovery.ok) {
+  recoveryPending = true;
+  console.warn('CozyQuest commit recovery issue:', startupRecovery.issues);
+} else if (startupRecovery.recovered) {
+  console.info('CozyQuest recovered a previous state commit.');
+}
+
 const loaded = storage.loadState(store);
 if (loaded.issues.length) console.warn('CozyQuest storage issues:', loaded.issues);
+const loadedWorld = worldStateModule.loadState(store);
+if (loadedWorld.issues.length) console.warn('CozyQuest world state issues:', loadedWorld.issues);
 
 let state = loaded.state;
+savedWorldState = loadedWorld.state;
 let activeFilter = 'all';
 let editingId = null;
 let toastTimer;
@@ -134,75 +156,154 @@ function syntheticGrowthResult(xp) {
   };
 }
 
-function prepareProgression(xp) {
-  if (!worldHandle) return null;
-  const prepared = {
-    xp,
-    scene: worldProgression.createProgressionScene(baseWorldMap, xp)
-  };
-  const checked = worldHandle.preflightProgression(prepared);
-  if (!checked.ok) throw new Error(checked.error);
-  return prepared;
+function issueText(issue) {
+  if (typeof issue === 'string') return issue;
+  if (!issue || typeof issue !== 'object') return String(issue);
+  return (issue.path ? issue.path + ': ' : '') + (issue.message || 'invalid');
 }
 
-function restoreWorld(xp) {
-  if (!worldHandle) return;
-  const currentXp = worldHandle.inspect().progression.xp;
-  if (currentXp === xp) return;
-  worldHandle.setProgression({
+function composeWorldScene(xp, worldStateToCompose) {
+  const composition = world.content.compose({
+    baseMap: baseWorldMap,
     xp,
-    scene: worldProgression.createProgressionScene(baseWorldMap, xp)
+    state: worldStateToCompose
   });
+  if (!composition.ok) {
+    const details = composition.issues.length
+      ? ': ' + composition.issues.map(issueText).join('; ')
+      : '';
+    throw new Error((composition.error || 'World composition failed') + details);
+  }
+  return composition;
 }
 
-// State, storage, progress display and the world are committed together. The
-// scene is preflighted before saving; if the in-place world update fails, the
-// previous state is restored and saved again so no mismatched stage is shown.
-function commitState(nextState, options) {
-  const settings = options || {};
-  const previousState = state;
-  const xp = rules.computeTotals(nextState).xp;
-  let prepared = null;
+function applyWorldComposition(composition, xp) {
+  if (!worldHandle) {
+    worldHandle = world.mount(document.getElementById('world-canvas'), {
+      infoPanel: document.getElementById('world-info-panel'),
+      xp,
+      scene: composition.scene
+    });
+    return syntheticGrowthResult(xp);
+  }
 
-  try {
-    prepared = prepareProgression(xp);
-  } catch (error) {
-    notify('World update cancelled: ' + error.message, 'error');
+  const update = { xp, scene: composition.scene };
+  const checked = worldHandle.preflightProgression(update);
+  if (!checked.ok) {
+    throw new Error(checked.error || checked.issues.map(issueText).join('; ') || 'World update preflight failed.');
+  }
+  return worldHandle.setProgression(update);
+}
+
+function hasWorldModifications(worldStateToCheck) {
+  return Boolean(
+    worldStateToCheck &&
+    worldStateToCheck.objects &&
+    (
+      worldStateToCheck.objects.placed.length ||
+      worldStateToCheck.objects.moved.length ||
+      worldStateToCheck.objects.removed.length ||
+      worldStateToCheck.terrain.length
+    )
+  );
+}
+
+function reloadStoredState() {
+  const reloaded = storage.loadState(store);
+  if (reloaded.issues.length) console.warn('CozyQuest storage issues:', reloaded.issues);
+  const reloadedWorld = worldStateModule.loadState(store);
+  if (reloadedWorld.issues.length) console.warn('CozyQuest world state issues:', reloadedWorld.issues);
+
+  state = reloaded.state;
+  savedWorldState = reloadedWorld.state;
+  render();
+
+  const xp = currentXp();
+  if (worldHandle) {
+    try {
+      applyWorldComposition(composeWorldScene(xp, savedWorldState), xp);
+    } catch (error) {
+      console.warn('CozyQuest world refresh issue:', error);
+    }
+  }
+  updateWorldGrowth(syntheticGrowthResult(xp));
+}
+
+function reportRollbackFailure(rollback, action) {
+  recoveryPending = true;
+  const detail = rollback && rollback.issues && rollback.issues.length
+    ? ' ' + rollback.issues.join('; ')
+    : '';
+  const marker = rollback && rollback.recoveryKey
+    ? ' A recovery marker was saved; reload the page to finish recovery.'
+    : ' Reload the page and check the browser console.';
+  console.warn('CozyQuest rollback failure:', action, rollback);
+  notify(action + ' and rollback could not finish.' + marker + detail, 'error');
+}
+
+function handleCommitFailure(committed) {
+  const rollback = committed.rollback;
+  const rollbackFailed = committed.recoveryRequired ||
+    (rollback && (!rollback.ok || (rollback.issues && rollback.issues.length)));
+  if (rollbackFailed) {
+    reportRollbackFailure(rollback || committed, 'Update failed');
     return false;
   }
 
-  const saved = storage.saveState(store, nextState);
-  if (!saved.ok) console.warn('CozyQuest save issues:', saved.issues);
-  state = nextState;
+  reloadStoredState();
+  const detail = committed.issues && committed.issues.length
+    ? committed.issues.join('; ')
+    : 'unknown error';
+  notify('Update cancelled: ' + detail, 'error');
+  return false;
+}
 
+// localStorage cannot atomically commit two keys. stateCommit validates,
+// composes, preflights, and preserves both previous values before writing; the
+// live world is changed only after every storage write succeeds.
+function commitState(nextState, settings = {}) {
+  const domains = settings.domains || { task: true, world: false };
+  const nextWorldState = domains.world
+    ? (settings.worldState === undefined ? savedWorldState : settings.worldState)
+    : savedWorldState;
+  const previousXp = currentXp();
+
+  const committed = stateCommit.commit({
+    store,
+    now: new Date().toISOString(),
+    current: { taskState: state, worldState: savedWorldState },
+    next: {
+      taskState: domains.task ? nextState : state,
+      worldState: nextWorldState
+    },
+    domains,
+    backup: settings.backup === true
+  });
+  if (!committed.ok) return handleCommitFailure(committed);
+
+  let result;
   try {
-    const result = worldHandle
-      ? worldHandle.setProgression(prepared)
-      : syntheticGrowthResult(xp);
-    if (!worldHandle) {
-      worldHandle = world.mount(document.getElementById('world-canvas'), {
-        infoPanel: document.getElementById('world-info-panel'),
-        xp
-      });
-    }
-    render();
-    updateWorldGrowth(result);
-    if (settings.message) notify(withGrowthFeedback(settings.message, result), settings.tone);
-    return true;
+    result = applyWorldComposition(committed.composition, committed.xp);
   } catch (error) {
-    state = previousState;
-    const restored = storage.saveState(store, previousState);
-    if (!restored.ok) console.warn('CozyQuest save issues:', restored.issues);
-    render();
-    try {
-      restoreWorld(rules.computeTotals(previousState).xp);
-    } catch (rollbackError) {
-      console.warn('CozyQuest world rollback issue:', rollbackError);
+    const undone = committed.rollback();
+    if (!undone.ok) {
+      reportRollbackFailure(undone, 'World update failed');
+      render();
+      updateWorldGrowth(syntheticGrowthResult(previousXp));
+      return false;
     }
-    updateWorldGrowth(syntheticGrowthResult(rules.computeTotals(previousState).xp));
+    reloadStoredState();
     notify('World update failed: ' + error.message, 'error');
     return false;
   }
+
+  state = committed.taskState;
+  savedWorldState = committed.worldState;
+  if (committed.issues.length) console.warn('CozyQuest state issues:', committed.issues);
+  render();
+  updateWorldGrowth(result);
+  if (settings.message) notify(withGrowthFeedback(settings.message, result), settings.tone);
+  return true;
 }
 
 function escapeHtml(s) {
@@ -415,7 +516,10 @@ document.querySelectorAll('.filter').forEach((btn) => btn.addEventListener('clic
 
 $('export-json').addEventListener('click', () => {
   try {
-    const text = transfer.exportState(state, { now: new Date().toISOString() });
+    const text = transfer.exportState(state, {
+      now: new Date().toISOString(),
+      worldState: savedWorldState
+    });
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
@@ -441,25 +545,74 @@ $('import-file').addEventListener('change', (e) => {
     const result = transfer.parseImport(String(reader.result), { now: new Date().toISOString() });
     if (!result.ok) { notify('Import rejected: ' + result.error, 'error'); return; }
     const s = result.summary;
+    const worldLine = result.hasWorld
+      ? '\nWorld changes: included; they will replace your saved world changes.'
+      : '\nWorld changes: not included; your current world will be kept.';
+    const skippedLine = result.worldIssues.length
+      ? `\nWorld notes: ${result.worldIssues.length} invalid saved record(s) were skipped.`
+      : '';
     const message =
       'Import this backup?\n\n' +
       `Tasks: ${s.taskCount} (${s.doneCount} done)\n` +
       `Reward entries: ${s.ledgerCount}\n` +
       `XP: ${s.xp} · coins: ${s.coins}\n` +
-      `Wood ${s.resources.wood} · stone ${s.resources.stone} · iron ${s.resources.iron}`;
+      `Wood ${s.resources.wood} · stone ${s.resources.stone} · iron ${s.resources.iron}` +
+      worldLine + skippedLine;
     if (!confirm(message)) return;
-    const backup = storage.backupState(store, state, { now: new Date().toISOString() });
-    if (!backup.ok) { notify('Import cancelled: backup failed.', 'error'); return; }
-    commitState(result.state, { message: 'Backup imported 🌿', tone: 'success' });
+    commitState(result.state, {
+      domains: { task: true, world: result.hasWorld },
+      worldState: result.worldState,
+      backup: true,
+      message: 'Backup imported 🌿',
+      tone: 'success'
+    });
   };
   reader.onerror = () => notify('Could not read that file.', 'error');
   reader.readAsText(file);
 });
 
+$('reset-world').addEventListener('click', () => {
+  if (!hasWorldModifications(savedWorldState)) {
+    notify('The world already has no saved changes.', 'info');
+    return;
+  }
+  const confirmed = confirm(
+    'Reset all saved world changes?\n\n' +
+    'This removes decorations, moves, removals, and terrain patches you saved. ' +
+    'XP, the world stage, and earned decorations are derived from tasks and will stay exactly as they are.'
+  );
+  if (!confirmed) return;
+
+  const freshWorld = worldStateModule.emptyState();
+  freshWorld.createdAt = savedWorldState.createdAt || new Date().toISOString();
+  freshWorld.updatedAt = new Date().toISOString();
+  commitState(state, {
+    domains: { task: false, world: true },
+    worldState: freshWorld,
+    backup: true,
+    message: 'World changes reset 🌱',
+    tone: 'info'
+  });
+});
+
 render();
-const initialXp = rules.computeTotals(state).xp;
+const initialXp = currentXp();
+let initialComposition;
+try {
+  initialComposition = composeWorldScene(initialXp, savedWorldState);
+} catch (error) {
+  console.warn('CozyQuest initial world composition issue:', error);
+  initialComposition = worldProgression.createProgressionScene(baseWorldMap, initialXp);
+}
 worldHandle = world.mount(document.getElementById('world-canvas'), {
   infoPanel: document.getElementById('world-info-panel'),
-  xp: initialXp
+  xp: initialXp,
+  scene: initialComposition.scene
 });
 updateWorldGrowth(syntheticGrowthResult(initialXp));
+
+if (startupRecovery && startupRecovery.recovered) {
+  notify('Recovered a previous update before loading your progress.', 'info');
+} else if (recoveryPending) {
+  notify('A commit recovery marker needs attention. Reload to retry recovery; details are in the browser console.', 'error');
+}
