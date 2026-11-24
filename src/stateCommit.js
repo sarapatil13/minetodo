@@ -4,13 +4,14 @@
   const rules = isNode ? require('./rules.js') : root.CQ.rules;
   const worldState = isNode ? require('./worldState.js') : root.CQ.worldState;
   const world = isNode ? require('./world/index.js') : root.CQ.world;
-  const api = factory(taskStorage, rules, worldState, world);
+  const decorations = isNode ? require('./world/decorations.js') : root.CQ.decorations;
+  const api = factory(taskStorage, rules, worldState, world, decorations);
   if (isNode) {
     module.exports = api;
   } else {
     (root.CQ = root.CQ || {}).stateCommit = api;
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (taskStorage, rules, worldState, world) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (taskStorage, rules, worldState, world, decorations) {
   'use strict';
 
   const RECOVERY_KEY = 'cozyquest.commit-recovery.v1';
@@ -74,8 +75,13 @@
     }
   }
 
-  function domainKey(domain) {
-    return domain === 'task' ? taskStorage.V2_KEY : worldState.KEY;
+  function isV2(state) {
+    return Boolean(state && state.schemaVersion === worldState.SCHEMA_VERSION_V2);
+  }
+
+  function domainKey(domain, state) {
+    if (domain === 'task') return taskStorage.V2_KEY;
+    return isV2(state) ? worldState.KEY_V2 : worldState.KEY;
   }
 
   function failure(phase, issues, extra) {
@@ -89,11 +95,11 @@
   // localStorage has no cross-key transaction. Every value needed to undo a
   // partial commit is captured before the first write, and rollback is
   // best-effort with an explicit durable marker when it cannot complete.
-  function preserveRawValues(store, domains) {
+  function preserveRawValues(store, domains, worldForKey) {
     const values = {};
     const issues = [];
     for (const domain of activeDomains(domains)) {
-      const read = readRaw(store, domainKey(domain));
+      const read = readRaw(store, domainKey(domain, domain === 'world' ? worldForKey : null));
       if (!read.ok) issues.push(...read.issues);
       values[domain] = read.ok ? read.value : null;
     }
@@ -127,7 +133,7 @@
     for (const domain of activeDomains(domains)) {
       const result = domain === 'task'
         ? taskStorage.backupState(store, states.task, { now })
-        : worldState.backupState(store, states.world, { now });
+        : worldState.backupAnyState(store, states.world, { now });
       if (!result.ok) {
         issues.push(domain + ' backup failed: ' + result.issues.map(issueText).join('; '));
         return { ok: false, issues, keys };
@@ -137,7 +143,7 @@
     return { ok: true, issues, keys };
   }
 
-  function writeRecoveryMarker(store, domains, values, now) {
+  function writeRecoveryMarker(store, domains, values, now, keys) {
     const payload = {
       schemaVersion: RECOVERY_SCHEMA,
       createdAt: now,
@@ -148,6 +154,10 @@
       values: {
         task: values.task === undefined ? null : values.task,
         world: values.world === undefined ? null : values.world
+      },
+      keys: {
+        task: (keys && keys.task) || taskStorage.V2_KEY,
+        world: (keys && keys.world) || worldState.KEY
       }
     };
     try {
@@ -161,12 +171,12 @@
     }
   }
 
-  function rollback(store, domains, values, now, description) {
+  function rollback(store, domains, values, now, description, worldForKey) {
     const restored = [];
     const issues = [];
 
     for (const domain of activeDomains(domains)) {
-      const result = writeRaw(store, domainKey(domain), values[domain]);
+      const result = writeRaw(store, domainKey(domain, domain === 'world' ? worldForKey : null), values[domain]);
       if (!result.ok) issues.push(domain + ' rollback failed: ' + result.issues.map(issueText).join('; '));
       else restored.push(domain);
     }
@@ -174,7 +184,11 @@
     const recoveryRequired = issues.length > 0;
     let recoveryMarkerWritten = false;
     if (recoveryRequired) {
-      const marker = writeRecoveryMarker(store, domains, values, now);
+      const keys = {
+        task: taskStorage.V2_KEY,
+        world: domainKey('world', worldForKey)
+      };
+      const marker = writeRecoveryMarker(store, domains, values, now, keys);
       recoveryMarkerWritten = marker.ok;
       if (!marker.ok) issues.push(...marker.issues);
     }
@@ -226,23 +240,46 @@
     }
 
     try {
-      checkedWorld = worldState.validateState(nextWorld);
+      checkedWorld = worldState.validateAnyState(nextWorld);
     } catch (error) {
       return failure('validate-world', ['world state validation threw: ' + describe(error)]);
     }
     if (!checkedWorld.ok) {
       return failure('validate-world', checkedWorld.issues.map(issueText));
     }
+    const worldForKey = checkedWorld.state;
 
     let xp;
     let composition;
+    let decorationIssues = [];
     try {
       xp = rules.computeTotals(checkedTask.state).xp;
-      composition = world.content.compose({
-        baseMap: world.createSampleMeadow(),
-        xp,
-        state: checkedWorld.state
-      });
+      if (isV2(worldForKey)) {
+        // Saved placements are gated only by biome compatibility at composition
+        // time. Unlocks were enforced when the item was acquired and placed;
+        // reopening or deleting tasks must not reverse those rewards.
+        const active = decorations.activeModifications(worldForKey, {
+          taskState: checkedTask.state,
+          enforceUnlocks: false
+        });
+        if (!active.ok) {
+          return failure('decorations', active.issues.map(issueText));
+        }
+        decorationIssues = active.issues.map(issueText);
+        const biomeId = worldForKey.activeBiome;
+        composition = world.content.compose({
+          baseMap: world.biomeCatalog.createBaseMap(biomeId),
+          xp,
+          state: active.modifications,
+          palette: world.biomeCatalog.paletteFor(biomeId)
+        });
+      } else {
+        composition = world.content.compose({
+          baseMap: world.createSampleMeadow(),
+          xp,
+          state: checkedWorld.state
+        });
+      }
     } catch (error) {
       return failure('compose', ['world composition threw: ' + describe(error)]);
     }
@@ -260,7 +297,7 @@
       return failure('preflight', preflight.issues);
     }
 
-    const preserved = preserveRawValues(store, domains);
+    const preserved = preserveRawValues(store, domains, worldForKey);
     if (!preserved.ok) {
       return failure('preserve', preserved.issues);
     }
@@ -279,7 +316,7 @@
     if (domains.task) {
       writeResult = taskStorage.saveState(store, checkedTask.state);
       if (!writeResult.ok) {
-        const undone = rollback(store, written, preserved.values, now, 'task write failure');
+        const undone = rollback(store, written, preserved.values, now, 'task write failure', worldForKey);
         return failure('write-task', writeResult.issues.map(issueText).concat(undone.issues), {
           rollback: undone,
           recoveryRequired: undone.recoveryRequired,
@@ -290,9 +327,9 @@
     }
 
     if (domains.world) {
-      writeResult = worldState.saveState(store, checkedWorld.state);
+      writeResult = worldState.saveAnyState(store, checkedWorld.state);
       if (!writeResult.ok) {
-        const undone = rollback(store, written, preserved.values, now, 'world write failure');
+        const undone = rollback(store, written, preserved.values, now, 'world write failure', worldForKey);
         return failure('write-world', writeResult.issues.map(issueText).concat(undone.issues), {
           rollback: undone,
           recoveryRequired: undone.recoveryRequired,
@@ -304,6 +341,7 @@
 
     const issues = checkedTask.issues
       .concat(checkedWorld.issues.map(issueText))
+      .concat(decorationIssues)
       .concat(composition.issues.map(issueText))
       .concat(preflight.issues)
       .concat(backups.issues);
@@ -319,7 +357,7 @@
       previousRaw: Object.freeze({ ...preserved.values }),
       backupKeys: Object.freeze(backups.keys),
       issues: Object.freeze(issues),
-      rollback: () => rollback(store, written, preserved.values, now, 'caller-requested rollback')
+      rollback: () => rollback(store, written, preserved.values, now, 'caller-requested rollback', worldForKey)
     });
   }
 
@@ -361,13 +399,16 @@
 
     const restored = [];
     const issues = [];
+    const markerKeys = isRecord(marker.keys) ? marker.keys : {};
+    const worldKey = markerKeys.world === worldState.KEY_V2 ? worldState.KEY_V2 : worldState.KEY;
     for (const domain of DOMAINS) {
       if (marker.domains[domain] !== true) continue;
       if (!Object.prototype.hasOwnProperty.call(marker.values, domain)) {
         issues.push(domain + ' recovery value is missing');
         continue;
       }
-      const result = writeRaw(store, domainKey(domain), marker.values[domain]);
+      const key = domain === 'world' ? worldKey : domainKey(domain);
+      const result = writeRaw(store, key, marker.values[domain]);
       if (!result.ok) issues.push(...result.issues);
       else restored.push(domain);
     }

@@ -379,3 +379,119 @@ test('classic script loading exposes stateCommit after worldState', () => {
   assert.equal(typeof context.CQ.stateCommit.recover, 'function');
   assert.equal(context.localStorage, undefined);
 });
+
+function v2World(biomeId = 'meadow') {
+  const state = worldState.emptyV2State();
+  state.createdAt = NOW;
+  state.updatedAt = NOW;
+  state.activeBiome = biomeId;
+  state.ownership.items.push({
+    id: 'user:item:daisy',
+    catalogId: 'decor:flower:daisy',
+    acquiredAt: NOW,
+    source: 'migration'
+  });
+  state.biomes[biomeId].objects.placed.push({
+    id: 'user:placement:daisy',
+    ownedId: 'user:item:daisy',
+    kind: 'flowers',
+    col: 4,
+    row: 4,
+    salt: 12
+  });
+  const checked = worldState.validateV2State(state);
+  assert.equal(checked.ok, true, checked.issues.map((issue) => issue.message).join('; '));
+  return checked.state;
+}
+
+test('v2 world commit writes KEY_V2 and leaves the legacy v1 key untouched', () => {
+  const legacy = JSON.stringify(worldState.emptyState());
+  const store = fakeStorage({
+    [taskStorage.V2_KEY]: JSON.stringify(taskState(500)),
+    [worldState.KEY]: legacy
+  });
+  const nextWorld = v2World();
+
+  const result = stateCommit.commit({
+    store,
+    current: { taskState: taskState(500), worldState: worldState.emptyState() },
+    next: { worldState: nextWorld },
+    domains: { task: false, world: true },
+    now: NOW
+  });
+
+  assert.equal(result.ok, true, result.issues.join('; '));
+  assert.equal(result.worldState.schemaVersion, 2);
+  assert.equal(store.data[worldState.KEY], legacy, 'v1 key must never be rewritten');
+  assert.equal(store.writes.some((write) => write.key === worldState.KEY), false);
+  assert.equal(JSON.parse(store.data[worldState.KEY_V2]).activeBiome, 'meadow');
+  assert.deepEqual(store.keys().sort(), [taskStorage.V2_KEY, worldState.KEY, worldState.KEY_V2].sort());
+  assert.ok(result.composition.map.objects.some((object) => object.id === 'user:placement:daisy'));
+});
+
+test('v2 commit composes the active biome and retains incompatible placements', () => {
+  const nextWorld = v2World('forest');
+  nextWorld.ownership.items.push({
+    id: 'user:item:snowdrop',
+    catalogId: 'decor:flower:snowdrop',
+    acquiredAt: NOW,
+    source: 'migration'
+  });
+  nextWorld.biomes.forest.objects.placed.push({
+    id: 'user:placement:snowdrop',
+    ownedId: 'user:item:snowdrop',
+    kind: 'flowers',
+    col: 5,
+    row: 5,
+    salt: 7
+  });
+  const store = fakeStorage({ [taskStorage.V2_KEY]: JSON.stringify(taskState(500)) });
+
+  const result = stateCommit.commit({
+    store,
+    current: { taskState: taskState(500), worldState: worldState.emptyState() },
+    next: { worldState: nextWorld },
+    domains: { task: false, world: true },
+    now: NOW
+  });
+
+  assert.equal(result.ok, true, result.issues.join('; '));
+  assert.equal(result.composition.scene.palette !== undefined, true);
+  assert.ok(result.issues.some((issue) => /incompatible/i.test(issue)));
+  assert.equal(JSON.parse(store.data[worldState.KEY_V2]).biomes.forest.objects.placed.length, 2,
+    'skipping a placement at composition time must not delete it from storage');
+  assert.equal(result.composition.map.objects.some((object) => object.id === 'user:placement:snowdrop'), false);
+});
+
+test('v2 backup writes a v2 envelope and rollback restores the v2 key', () => {
+  let blockWorldWrite = false;
+  const store = fakeStorage({
+    [taskStorage.V2_KEY]: JSON.stringify(taskState(500)),
+    [worldState.KEY_V2]: JSON.stringify(worldState.emptyV2State())
+  }, (key) => (key === worldState.KEY_V2 && blockWorldWrite ? new Error('v2 blocked') : null));
+
+  const result = stateCommit.commit({
+    store,
+    current: { taskState: taskState(500), worldState: worldState.emptyV2State() },
+    next: { worldState: v2World() },
+    domains: { task: false, world: true },
+    backup: true,
+    now: NOW
+  });
+
+  assert.equal(result.ok, true, result.issues.join('; '));
+  assert.equal(JSON.parse(store.data[result.backupKeys.world]).schemaVersion, 2);
+
+  blockWorldWrite = true;
+  const undone = result.rollback();
+  assert.equal(undone.ok, false);
+  assert.equal(undone.recoveryRequired, true);
+  const marker = JSON.parse(store.data[stateCommit.RECOVERY_KEY]);
+  assert.equal(marker.keys.world, worldState.KEY_V2);
+
+  blockWorldWrite = false;
+  const recovered = stateCommit.recover(store);
+  assert.equal(recovered.ok, true);
+  assert.deepEqual(recovered.restored, ['world']);
+  assert.equal(JSON.parse(store.data[worldState.KEY_V2]).schemaVersion, 2);
+});
