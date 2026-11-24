@@ -567,9 +567,12 @@
         return;
       }
       if (!world.biomeCatalog.supportsItem(context.biomeId, owned.catalogId)) {
+        // Saved modifications survive biome definition changes. Composition
+        // skips this placement with an explicit issue; validation must not
+        // delete it from the persisted envelope.
         addIssue(issues, ISSUE_CODES.INCOMPATIBLE_ITEM, path,
-          'Owned item is not compatible with this biome.', { id: owned.catalogId, biome: context.biomeId });
-        return;
+          'Owned item is not compatible with this biome and will be skipped while rendering.',
+          { id: owned.catalogId, biome: context.biomeId });
       }
       if (!Number.isSafeInteger(record.col) || !Number.isSafeInteger(record.row) ||
           record.col < 0 || record.col >= world.map.WIDTH ||

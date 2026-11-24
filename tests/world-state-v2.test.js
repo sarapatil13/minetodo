@@ -153,8 +153,10 @@ test('v2 validation keeps owned items and placements distinct and non-duplicated
   const checked = worldState.validateV2State(state);
   assert.equal(checked.ok, true);
   assert.equal(checked.state.biomes.meadow.objects.placed.length, 1);
-  assert.equal(checked.state.biomes.forest.objects.placed.length, 0);
-  assert.equal(checked.state.biomes.lakeside.objects.placed.length, 0);
+  assert.equal(checked.state.biomes.forest.objects.placed.length, 1,
+    'incompatible saved placements are retained for later biomes');
+  assert.equal(checked.state.biomes.lakeside.objects.placed.length, 0,
+    'invalid kind mismatches are still skipped');
   assert.equal(checked.state.ownership.items.length, 2, 'skipped placements must preserve ownership');
   assert.ok(checked.issues.some((issue) => issue.code === 'DUPLICATE_PLACEMENT'));
   assert.ok(checked.issues.some((issue) => issue.code === 'INCOMPATIBLE_ITEM'));

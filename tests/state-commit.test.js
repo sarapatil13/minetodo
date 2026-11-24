@@ -366,6 +366,7 @@ test('classic script loading exposes stateCommit after worldState', () => {
     'src/world/controller.js',
     'src/world/index.js',
     'src/worldState.js',
+    'src/world/decorations.js',
     'src/stateCommit.js'
   ];
 
