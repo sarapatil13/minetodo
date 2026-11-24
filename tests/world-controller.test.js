@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const mapData = require('../src/world/map.js');
 const sceneData = require('../src/world/scene.js');
 const controller = require('../src/world/controller.js');
+const progression = require('../src/world/progression.js');
+const selectableTargets = require('../src/world/selectableTargets.js');
 
 test('computeCanvasMetrics applies DPR and clamps the backing store', () => {
   assert.deepEqual(controller.computeCanvasMetrics(320, 180, 1), { dpr: 1, width: 320, height: 180 });
@@ -123,4 +125,168 @@ test('createController exposes interaction inspection and cleans up interaction 
     assert.equal(handle.destroy(), true);
     assert.equal(handle.destroy(), false);
   }
+});
+
+function createProgressionController() {
+  const canvas = {
+    width: 0,
+    height: 0,
+    parentElement: null,
+    classList: {
+      values: new Set(),
+      add(value) { this.values.add(value); },
+      remove(value) { this.values.delete(value); },
+      contains(value) { return this.values.has(value); }
+    },
+    getContext: () => createContext(),
+    getBoundingClientRect: () => ({ width: 320, height: 180 })
+  };
+  return controller.createController(canvas, { maxDpr: 1 });
+}
+
+test('setProgression updates world, stage, targets and progress in one commit', () => {
+  const handle = createProgressionController();
+  try {
+    const before = handle.inspect();
+    const originalWorld = handle.world;
+    const originalHandle = handle;
+    const scene = progression.createProgressionScene(mapData.createSampleMeadow(), 500);
+    const checked = handle.preflightProgression({ xp: 500, scene });
+
+    assert.equal(checked.ok, true);
+    assert.strictEqual(handle.world, originalWorld);
+    assert.equal(before.progression.stageId, 'starting-meadow');
+
+    const result = handle.setProgression({ xp: 500, scene });
+    const after = handle.inspect();
+
+    assert.equal(result.committed, true);
+    assert.strictEqual(handle, originalHandle);
+    assert.strictEqual(handle.world, scene);
+    assert.notStrictEqual(handle.world, originalWorld);
+    assert.equal(after.progression.xp, 500);
+    assert.equal(after.progression.stageId, 'developed-village');
+    assert.deepEqual(after.progression.unlockedFeatures, [
+      'meadow-wildflowers',
+      'meadow-path-accent',
+      'village-annex'
+    ]);
+    assert.equal(after.interaction.targetCount, checked.targetCount);
+    assert.ok(after.interaction.targets.includes('object:progression-annex-house'));
+    assert.deepEqual(after.camera, before.camera);
+    assert.deepEqual(after.view, before.view);
+    assert.equal(result.stageChanged, true);
+    assert.deepEqual(Array.from(result.addedFeatures), [
+      'meadow-wildflowers',
+      'meadow-path-accent',
+      'village-annex'
+    ]);
+  } finally {
+    handle.destroy();
+  }
+});
+
+test('setProgression can lower a derived stage and removes only vanished features', () => {
+  const handle = createProgressionController();
+  try {
+    handle.setProgression({
+      xp: 1400,
+      scene: progression.createProgressionScene(mapData.createSampleMeadow(), 1400)
+    });
+    const fullTargets = handle.inspect().interaction.targets.slice();
+
+    const baseScene = progression.createProgressionScene(mapData.createSampleMeadow(), 0);
+    const result = handle.setProgression({ xp: 0, scene: baseScene });
+
+    assert.equal(result.stageChanged, true);
+    assert.deepEqual(Array.from(result.removedFeatures), [
+      'meadow-wildflowers',
+      'meadow-path-accent',
+      'village-annex',
+      'village-garden',
+      'thriving-canopy'
+    ]);
+    assert.equal(handle.inspect().progression.stageId, 'starting-meadow');
+    assert.equal(handle.inspect().progression.unlockedFeatures.length, 0);
+    assert.ok(handle.inspect().interaction.targetCount < fullTargets.length);
+    assert.ok(!handle.inspect().interaction.targets.includes('object:progression-canopy-tree'));
+  } finally {
+    handle.destroy();
+  }
+});
+
+test('preflightProgression rejects invalid XP, maps, targets and bounds without mutation', () => {
+  const handle = createProgressionController();
+  try {
+    const originalWorld = handle.world;
+    const originalInfo = handle.inspect();
+    const scene = progression.createProgressionScene(mapData.createSampleMeadow(), 100);
+
+    for (const input of [null, { xp: -1, scene }, { xp: NaN, scene }]) {
+      const result = handle.preflightProgression(input);
+      assert.equal(result.ok, false);
+      assert.throws(() => handle.setProgression(input), /Progression/);
+    }
+
+    const invalidMap = progression.createProgressionScene(mapData.createSampleMeadow(), 100);
+    invalidMap.map.objects[0].id = '';
+    assert.match(handle.preflightProgression({ xp: 100, scene: invalidMap }).error, /Invalid progression map/);
+
+    const invalidTargets = progression.createProgressionScene(mapData.createSampleMeadow(), 100);
+    const objectCommand = invalidTargets.commands.find((command) => command.layer === 'object');
+    invalidTargets.commands = invalidTargets.commands.concat([
+      Object.assign({}, objectCommand, { id: 'object:duplicate-target' })
+    ]);
+    assert.match(handle.preflightProgression({ xp: 100, scene: invalidTargets }).error,
+      /Invalid progression target index/);
+
+    const wrongBounds = progression.createProgressionScene(mapData.createSampleMeadow(), 100);
+    wrongBounds.bounds = Object.assign({}, wrongBounds.bounds, { width: wrongBounds.bounds.width + 1 });
+    assert.match(handle.preflightProgression({ xp: 100, scene: wrongBounds }).error, /bounds/);
+
+    assert.strictEqual(handle.world, originalWorld);
+    assert.deepEqual(handle.inspect(), originalInfo);
+    assert.equal(
+      handle.inspect().interaction.targetCount,
+      selectableTargets.buildSelectableTargets(originalWorld).targets.length
+    );
+  } finally {
+    handle.destroy();
+  }
+});
+
+test('setProgression rolls back the previous world if the target index cannot be replaced', () => {
+  const handle = createProgressionController();
+  const originalWorld = handle.world;
+  const originalInfo = handle.inspect();
+  const originalBuild = selectableTargets.buildSelectableTargets;
+  let builds = 0;
+
+  selectableTargets.buildSelectableTargets = function (...args) {
+    builds += 1;
+    const result = originalBuild.apply(this, args);
+    if (builds === 2) {
+      return Object.freeze({
+        targets: result.targets,
+        byId: result.byId,
+        issues: Object.freeze([{ code: 'FORCED', path: 'scene', message: 'forced failure' }])
+      });
+    }
+    return result;
+  };
+
+  try {
+    const scene = progression.createProgressionScene(mapData.createSampleMeadow(), 250);
+    assert.throws(
+      () => handle.setProgression({ xp: 250, scene }),
+      /Unable to replace the selectable target index/
+    );
+  } finally {
+    selectableTargets.buildSelectableTargets = originalBuild;
+  }
+
+  assert.strictEqual(handle.world, originalWorld);
+  assert.deepEqual(handle.inspect().progression, originalInfo.progression);
+  assert.deepEqual(handle.inspect().interaction.targets, originalInfo.interaction.targets);
+  handle.destroy();
 });

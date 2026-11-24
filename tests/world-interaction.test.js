@@ -6,6 +6,7 @@ const sceneData = require('../src/world/scene.js');
 const hitTest = require('../src/world/hitTest.js');
 const selectableTargets = require('../src/world/selectableTargets.js');
 const interaction = require('../src/world/interaction.js');
+const progression = require('../src/world/progression.js');
 
 class FakeClassList {
   constructor() {
@@ -145,4 +146,69 @@ test('feedback payload includes targets for renderer command lookup', () => {
   assert.strictEqual(feedback.targetsById[ids[0]].id, ids[0]);
   assert.equal(feedback.hoverId, null);
   assert.equal(feedback.keyboardFocusId, ids[0]);
+});
+
+test('setScene replaces the target index in place and keeps the handle identity', () => {
+  const context = setup();
+  const handle = context.handle;
+  const before = handle.inspect();
+  const renders = context.renderCalls();
+
+  const fullScene = progression.createProgressionScene(mapData.createSampleMeadow(), 1400);
+  assert.equal(handle.setScene(fullScene), true);
+
+  assert.strictEqual(handle, context.handle);
+  assert.ok(context.renderCalls() > renders);
+  const after = handle.inspect();
+  assert.ok(after.targetCount > before.targetCount);
+  assert.ok(after.targets.includes('object:starter-house'));
+  assert.ok(after.targets.includes('object:progression-annex-house'));
+  assert.equal(new Set(after.targets).size, after.targets.length);
+  assert.strictEqual(handle.feedback().targetsById['object:progression-annex-house'].id,
+    'object:progression-annex-house');
+});
+
+test('setScene clears targets that disappear when progression is lowered', () => {
+  const context = setup();
+  const fullScene = progression.createProgressionScene(mapData.createSampleMeadow(), 1400);
+  assert.equal(context.handle.setScene(fullScene), true);
+
+  const generatedId = 'object:progression-annex-house';
+  const generated = selectableTargets.buildSelectableTargets(fullScene).byId[generatedId];
+  const point = camera.sceneToScreen(
+    hitTest.anchorForTarget(generated),
+    context.viewport,
+    context.getCamera()
+  );
+  context.handle.handleTap(point, {}, 'mouse');
+  assert.equal(context.handle.inspect().selectedId, generatedId);
+
+  for (let step = 0; step < context.handle.inspect().targetCount * 2; step += 1) {
+    if (context.handle.inspect().keyboardFocusId === generatedId) break;
+    context.handle.handleNavigate(1, {});
+  }
+  assert.equal(context.handle.inspect().keyboardFocusId, generatedId);
+
+  const baseScene = sceneData.createScene(mapData.createSampleMeadow());
+  assert.equal(context.handle.setScene(baseScene), true);
+  const after = context.handle.inspect();
+  assert.equal(after.selectedId, null);
+  assert.equal(after.keyboardFocusId, null);
+  assert.ok(!after.targets.includes(generatedId));
+  assert.equal(after.targetCount,
+    selectableTargets.buildSelectableTargets(baseScene).targets.length);
+});
+
+test('setScene rejects an index with issues without replacing the live index', () => {
+  const context = setup();
+  const before = context.handle.inspect().targets.slice();
+
+  const brokenScene = progression.createProgressionScene(mapData.createSampleMeadow(), 100);
+  const objectCommand = brokenScene.commands.find((command) => command.layer === 'object');
+  brokenScene.commands = brokenScene.commands.concat([
+    Object.assign({}, objectCommand, { id: 'object:duplicate-target' })
+  ]);
+
+  assert.equal(context.handle.setScene(brokenScene), false);
+  assert.deepEqual(context.handle.inspect().targets, before);
 });

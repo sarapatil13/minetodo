@@ -7,16 +7,62 @@
   const camera = isNode ? require('./camera.js') : root.CQ.worldCamera;
   const cameraInput = isNode ? require('./cameraInput.js') : root.CQ.worldCameraInput;
   const interaction = isNode ? require('./interaction.js') : root.CQ.worldInteraction;
-  const api = factory(root, coords, mapData, renderer, sceneData, camera, cameraInput, interaction);
+  const validation = isNode ? require('./mapValidation.js') : root.CQ.worldMapValidation;
+  const selectableTargets = isNode
+    ? require('./selectableTargets.js')
+    : root.CQ.worldSelectableTargets;
+  const progression = isNode ? require('./progression.js') : root.CQ.worldProgression;
+  const api = factory(
+    root,
+    coords,
+    mapData,
+    renderer,
+    sceneData,
+    camera,
+    cameraInput,
+    interaction,
+    validation,
+    selectableTargets,
+    progression
+  );
   if (isNode) {
     module.exports = api;
   } else {
     (root.CQ = root.CQ || {}).worldController = api;
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (root, coords, mapData, renderer, sceneData, camera, cameraInput, interaction) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (
+  root,
+  coords,
+  mapData,
+  renderer,
+  sceneData,
+  camera,
+  cameraInput,
+  interaction,
+  validation,
+  selectableTargets,
+  progression
+) {
   'use strict';
 
   const MAX_DPR = 3;
+
+  function isRecord(value) {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function boundsEqual(left, right) {
+    if (!isRecord(left) || !isRecord(right)) return false;
+    return ['minX', 'minY', 'maxX', 'maxY', 'width', 'height'].every((key) =>
+      left[key] === right[key]
+    );
+  }
+
+  function describeIssues(prefix, issues) {
+    return prefix + issues.map((issue) =>
+      (issue.path || 'scene') + ': ' + (issue.message || 'invalid')
+    ).join('; ');
+  }
 
   function devicePixelRatio() {
     const value = root && root.devicePixelRatio;
@@ -62,7 +108,7 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    const world = settings.scene || sceneData.createScene(
+    let world = settings.scene || sceneData.createScene(
       settings.map || mapData.createSampleMeadow(),
       { origin: settings.origin, tile: settings.tile }
     );
@@ -74,6 +120,8 @@
     let cameraState = camera.createCamera(world.bounds, settings.camera || {});
     let cameraInputHandle = null;
     let interactionHandle = null;
+    let handle = null;
+    let progressionState = progression.worldProgress(settings.xp);
     let destroyed = false;
     let frame = 0;
     let observer = null;
@@ -154,6 +202,112 @@
     function currentViewport() {
       if (destroyed) return lastViewport;
       return syncViewport().viewport;
+    }
+
+    function progressionFailure(error, issues) {
+      return Object.freeze({
+        ok: false,
+        error,
+        issues: Object.freeze(Array.isArray(issues) ? issues.slice() : [])
+      });
+    }
+
+    // Preflight is side-effect free. It validates the composed map, the
+    // renderer scene, the selectable target index and the stable scene bounds
+    // before anything in the live world is replaced.
+    function preflightProgression(input) {
+      if (destroyed) return progressionFailure('World controller has been destroyed.');
+      if (!isRecord(input)) return progressionFailure('Progression update must be an object.');
+      if (!Number.isFinite(input.xp) || input.xp < 0) {
+        return progressionFailure('Progression XP must be a finite, non-negative number.');
+      }
+
+      const xp = progression.normalizeXp(input.xp);
+      const scene = input.scene;
+      if (!isRecord(scene) || !isRecord(scene.map) || !Array.isArray(scene.commands)) {
+        return progressionFailure('Progression scene must contain a map and command array.');
+      }
+
+      const mapErrors = validation.validateMap(scene.map);
+      if (mapErrors.length) {
+        return progressionFailure(describeIssues('Invalid progression map: ', mapErrors), mapErrors);
+      }
+
+      const targetIndex = selectableTargets.buildSelectableTargets(scene, settings.targetOptions);
+      if (targetIndex.issues.length) {
+        return progressionFailure(
+          describeIssues('Invalid progression target index: ', targetIndex.issues),
+          targetIndex.issues
+        );
+      }
+
+      if (!boundsEqual(scene.bounds, world.bounds)) {
+        return progressionFailure('Progression scene bounds must match the current world bounds.');
+      }
+
+      const progress = progression.worldProgress(xp);
+      const previous = Object.freeze({
+        xp: progressionState.xp,
+        stageId: progressionState.stage.id,
+        unlockedFeatures: Object.freeze(Array.from(progressionState.unlockedFeatures))
+      });
+      const unlocked = Array.from(progress.unlockedFeatures);
+      const addedFeatures = Object.freeze(unlocked.filter((id) =>
+        previous.unlockedFeatures.indexOf(id) === -1
+      ));
+      const removedFeatures = Object.freeze(previous.unlockedFeatures.filter((id) =>
+        unlocked.indexOf(id) === -1
+      ));
+
+      return Object.freeze({
+        ok: true,
+        xp,
+        scene,
+        progress,
+        previous,
+        stageChanged: previous.stageId !== progress.stage.id,
+        addedFeatures,
+        removedFeatures,
+        targetCount: targetIndex.targets.length,
+        targetIndex
+      });
+    }
+
+    // The live update is a single commit after a successful preflight. If the
+    // in-place target index cannot be replaced, the previous world and XP are
+    // restored before the error is rethrown.
+    function setProgression(input) {
+      const checked = preflightProgression(input);
+      if (!checked.ok) throw new Error(checked.error);
+
+      const previousWorld = world;
+      const previousProgress = progressionState;
+      try {
+        if (interactionHandle && typeof interactionHandle.setScene === 'function') {
+          if (!interactionHandle.setScene(checked.scene)) {
+            throw new Error('Unable to replace the selectable target index.');
+          }
+        }
+        world = checked.scene;
+        progressionState = checked.progress;
+        if (handle) handle.world = world;
+        requestRender();
+        return Object.freeze(Object.assign({}, checked, { committed: true }));
+      } catch (error) {
+        world = previousWorld;
+        progressionState = previousProgress;
+        if (handle) handle.world = world;
+        if (interactionHandle && typeof interactionHandle.setScene === 'function') {
+          try {
+            interactionHandle.setScene(previousWorld);
+          } catch {
+            // Keep the original failure; preflight guarantees the old world
+            // was valid when it was first installed.
+          }
+        }
+        requestRender();
+        throw error;
+      }
     }
 
     function applyCamera(next) {
@@ -253,11 +407,13 @@
     watchDpr();
     requestRender();
 
-    const handle = {
+    handle = {
       world,
       requestRender,
       resize: requestRender,
       redraw: draw,
+      preflightProgression,
+      setProgression,
       inspect() {
         return {
           cssWidth: lastSize.width,
@@ -270,6 +426,13 @@
             : null,
           viewport: lastViewport,
           camera: camera.cloneCamera(cameraState),
+          progression: Object.freeze({
+            xp: progressionState.xp,
+            stageId: progressionState.stage.id,
+            stageName: progressionState.stage.name,
+            unlockedFeatures: Object.freeze(Array.from(progressionState.unlockedFeatures)),
+            nextUnlockId: progressionState.nextUnlock ? progressionState.nextUnlock.id : null
+          }),
           interaction: interactionHandle ? interactionHandle.inspect() : null
         };
       },

@@ -30,6 +30,10 @@
     : root.CQ.worldInteractionState;
   const infoPanel = isNode ? require('./infoPanel.js') : root.CQ.worldInfoPanel;
   const interaction = isNode ? require('./interaction.js') : root.CQ.worldInteraction;
+  const progression = isNode ? require('./progression.js') : root.CQ.worldProgression;
+  const progressionConfig = isNode
+    ? require('../progressionConfig.js')
+    : root.CQ.progressionConfig;
   const controller = isNode ? require('./controller.js') : root.CQ.worldController;
 
   function mount(canvas, options) {
@@ -38,11 +42,14 @@
     const previous = canvas.__cozyQuestWorldHandle;
     if (previous && typeof previous.destroy === 'function') previous.destroy();
 
-    const scene = settings.scene || sceneData.createScene(
-      settings.map || mapData.createSampleMeadow(),
-      { origin: settings.origin, tile: settings.tile }
-    );
-    const controllerOptions = Object.assign({}, settings, { scene });
+    const baseMap = settings.map || mapData.createSampleMeadow();
+    const xp = progression.normalizeXp(settings.xp);
+    // Zero XP keeps the exact Phase 2.1 meadow; later stages compose from the
+    // same immutable base map without mutating it.
+    const scene = settings.scene || (xp > 0
+      ? progression.createProgressionScene(baseMap, xp, { origin: settings.origin, tile: settings.tile })
+      : sceneData.createScene(baseMap, { origin: settings.origin, tile: settings.tile }));
+    const controllerOptions = Object.assign({}, settings, { scene, xp });
     const handle = controller.createController(canvas, controllerOptions);
     if (!handle) return null;
 
@@ -72,6 +79,8 @@
     interactionState,
     infoPanel,
     interaction,
+    progression,
+    progressionConfig,
     controller,
     mount,
     createSampleMeadow: mapData.createSampleMeadow,

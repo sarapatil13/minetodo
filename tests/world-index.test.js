@@ -51,6 +51,9 @@ test('public adapter exposes world modules and sample factory', () => {
   assert.equal(typeof world.interactionState.createState, 'function');
   assert.equal(typeof world.interaction.create, 'function');
   assert.equal(typeof world.infoPanel.attach, 'function');
+  assert.equal(typeof world.progression.worldProgress, 'function');
+  assert.equal(typeof world.progression.composeProgressionMap, 'function');
+  assert.deepEqual(world.progressionConfig.WORLD_STAGES.map((stage) => stage.minXp), [0, 100, 500, 1400]);
 });
 
 test('mount builds a sample scene and redraws without task modules', () => {
@@ -81,5 +84,35 @@ test('mounting twice destroys the previous controller handle', () => {
     assert.equal(second.destroy(), false);
   } finally {
     second.destroy();
+  }
+});
+
+test('mount accepts an initial XP and exposes progression APIs on the handle', () => {
+  const canvas = createCanvas();
+  const handle = world.mount(canvas, { maxDpr: 1, xp: 500 });
+
+  try {
+    assert.ok(handle);
+    assert.equal(handle.world.map.objects.length, 28);
+    assert.ok(handle.world.commands.some((command) => command.id === 'object:progression-annex-house'));
+    assert.deepEqual(handle.world.bounds, world.worldBounds(world.createSampleMeadow()));
+    assert.equal(handle.inspect().progression.stageId, 'developed-village');
+    assert.equal(typeof handle.preflightProgression, 'function');
+    assert.equal(typeof handle.setProgression, 'function');
+  } finally {
+    handle.destroy();
+  }
+});
+
+test('mount at zero XP keeps the exact base meadow', () => {
+  const canvas = createCanvas();
+  const handle = world.mount(canvas, { maxDpr: 1, xp: 0 });
+
+  try {
+    assert.equal(JSON.stringify(handle.world.map), JSON.stringify(world.createSampleMeadow()));
+    assert.equal(handle.world.commands.length, 118);
+    assert.equal(handle.inspect().progression.stageId, 'starting-meadow');
+  } finally {
+    handle.destroy();
   }
 });

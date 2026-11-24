@@ -39,8 +39,8 @@
     }
 
     const deps = dependencies;
-    const index = selectableTargets.buildSelectableTargets(deps.scene, deps.targetOptions);
-    const ids = Object.freeze(index.targets.map((target) => target.id));
+    let index = selectableTargets.buildSelectableTargets(deps.scene, deps.targetOptions);
+    let ids = Object.freeze(index.targets.map((target) => target.id));
     let state = interactionState.createState(index.targets.length);
     let destroyed = false;
     let panelHandle = infoPanel.attach(deps.infoPanel, {
@@ -93,6 +93,33 @@
       if (panelHandle && typeof panelHandle.update === 'function') {
         panelHandle.update(descriptionFor(state.selectedId));
       }
+    }
+
+    // Progression updates rebuild the target index in place. The interaction
+    // handle, its camera callbacks, canvas listeners and panel handle all stay
+    // alive; only index-derived state is replaced.
+    function setScene(nextScene) {
+      if (destroyed || !isRecord(nextScene) || !Array.isArray(nextScene.commands)) return false;
+
+      const nextIndex = selectableTargets.buildSelectableTargets(nextScene, deps.targetOptions);
+      if (nextIndex.issues.length) return false;
+
+      index = nextIndex;
+      ids = Object.freeze(nextIndex.targets.map((target) => target.id));
+
+      function stillExists(id) {
+        return typeof id === 'string' && Boolean(index.byId[id]);
+      }
+
+      const changes = { targetCount: nextIndex.targets.length };
+      if (!stillExists(state.hoverId)) changes.hoverId = null;
+      if (!stillExists(state.selectedId)) changes.selectedId = null;
+      if (!stillExists(state.keyboardFocusId)) changes.keyboardFocusId = null;
+
+      commit(Object.freeze(Object.assign({}, state, changes)), { scheduleRender: false });
+      syncPanel();
+      requestRender();
+      return true;
     }
 
     function setSelection(id) {
@@ -211,6 +238,7 @@
       handleNavigate,
       handleActivate,
       handleClear,
+      setScene,
       feedback,
       inspect,
       destroy() {
