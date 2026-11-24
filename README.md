@@ -20,6 +20,7 @@ Progress is saved in this browser using `localStorage`. This means it stays on t
 - Derived XP, coins, and resources from a fixed 12-combination reward matrix.
 - Permanent reward ledger: completing a task earns a reward once, forever.
 - XP levels and a basic resource inventory.
+- A world that grows from earned XP, with four stages and two intermediate milestones.
 - All / To do / Completed filters.
 - A Canvas 2D isometric meadow renderer with terrain, trees, flowers, a pond and a starter house.
 - Canonical terrain definitions, aliases, immutable grid queries, and validated terrain updates.
@@ -98,6 +99,7 @@ styles.css              layout and theme
 src/rules.js            pure priority, reward, and task lifecycle rules
 src/storage.js          validation, migration, and localStorage helpers
 src/transfer.js         export/import envelope and strict parsing
+src/progressionConfig.js    shared cosmetic level, stage and milestone thresholds
 src/world/coords.js          grid/screen transforms, tile picking and scene bounds
 src/world/tiles.js           canonical terrain definitions, aliases and variant helper
 src/world/map.js             deterministic sample meadow data using tile definitions
@@ -105,6 +107,7 @@ src/world/mapValidation.js   structured map validation
 src/world/grid.js            immutable grid queries and updates
 src/world/renderer.js        procedural Canvas 2D drawing primitives
 src/world/scene.js           draw-command composition and deterministic depth sorting
+src/world/progression.js     pure XP derivation and deterministic world composition
 src/world/camera.js          camera state, viewport transforms, pan, zoom and constraints
 src/world/cameraInput.js     sole canvas listener owner; pan, pinch, hover, tap and key semantics
 src/world/hitTest.js         renderer-derived hit shapes and painter-order target picking
@@ -235,6 +238,40 @@ This model intentionally treats only objects and pond tiles as occluders. Other 
 
 `mount()` accepts `{ infoPanel, tapThresholds, toleranceCss, targetOptions }`. The controller owns the interaction lifecycle and exposes a frozen snapshot as `inspect().interaction`, including hover, selection, keyboard focus, cached pointer, target IDs, target issues, and panel state. `destroy()` closes the panel, clears hover state, and leaves no duplicate listeners.
 
+## Phase 2.5 XP-based world growth
+
+Phase 2.5 connects the world to the existing task economy. The only source of progression is `CQ.rules.computeTotals(state).xp` — the same baseline-plus-ledger total already used by the header and reward rules. No second XP counter, stored stage, milestone claim flag, persisted world map, reward matrix value, schema field, or ledger rule was added. Reopening or deleting a task never reduces earned XP, and completing a reopened task never awards twice.
+
+The cosmetic level ladder is shared through `CQ.progressionConfig.LEVELS` instead of being duplicated in `app.js`. Levels are grouped into exactly four world stages, with exactly two intermediate accent milestones:
+
+| XP | World stage | Milestone / feature | Visual unlock |
+|---:|---|---|---|
+| 0 | Starting Meadow | — | unchanged sample meadow |
+| 100 | Growing Meadow | `meadow-wildflowers` | wildflowers appear |
+| 250 | Growing Meadow | `meadow-path-accent` | a meadow path and fence appear |
+| 500 | Developed Village | `village-annex` | a village annex appears |
+| 900 | Developed Village | `village-garden` | a garden grove appears |
+| 1400 | Thriving Village | `thriving-canopy` | the thriving canopy appears |
+
+There are no other world thresholds. Every unlock is derived from XP, monotonic, and still present at higher XP. The 250 and 900 accents are real feature IDs in the derived feature set, update the next-unlock message, and add distinct objects and path tiles. At 1400 and beyond all features are unlocked and the message reads “Every world feature is blooming.”
+
+Maps are composed from a fresh `CQ.world.createSampleMeadow()`; the base factory is never mutated or overwritten. Generated records use stable `progression-*` IDs and only the existing supported object kinds. They occupy fixed interior anchors, so every composed map validates, has unique IDs and anchors, keeps every base object unchanged, and has exactly the same `sceneBounds()` as the zero-XP meadow. Three grass-to-path tile patches use the existing tile validator with salt `3`. The zero-XP map is byte-for-byte the original sample meadow, and zero-XP screenshots remain unchanged; the progress row is hidden at 0 XP while still exposing text to assistive technology.
+
+State, storage, progress display, and the world are committed together. `app.js` preflights the composed map, target index, XP and bounds before saving, then calls the in-place controller update. The world handle, camera focus/zoom, canvas listeners, target identity, and `inspect().view` shape are preserved; the world is never remounted on a task update. If the live target index cannot be replaced, the previous world and XP are restored before the state is rolled back and saved again.
+
+Imports recompute the derived stage from the imported ledger. An import with less lifetime XP can therefore lower the derived stage and remove decorations that are no longer earned; this is intentional because nothing about stage is persisted. Exports and the authoritative ledger are unchanged.
+
+### Public progression APIs
+
+`CQ.world.mount(...)` keeps its existing shape and optionally accepts `{ xp }` for an initial derived stage. The returned world handle adds `preflightProgression({ xp, scene })` and `setProgression({ xp, scene })`, and `inspect()` adds a frozen `progression` snapshot with `xp`, `stageId`, `stageName`, `unlockedFeatures`, and `nextUnlockId`.
+
+Phase 2.5 also adds:
+
+- `CQ.progressionConfig` with `LEVELS`, `WORLD_STAGES`, and `WORLD_MILESTONES`.
+- `CQ.world.progression` with `STAGES`, `MILESTONES`, `FEATURES`, `FEATURE_CONTENT`, `normalizeXp`, `stageForXp`, `featuresForXp`, `featureIdsForXp`, `nextFeatureAfter`, `worldProgress`, `composeProgressionMap`, and `createProgressionScene`.
+
+Phase 2.5 does not add player movement, object placement or editing, world-map persistence, biomes, inventory, crafting, shops, cloud sync, new reward values, or additional unlock thresholds.
+
 ## Tests
 
 Run the complete automated suite from this directory:
@@ -243,7 +280,7 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, and controller cleanup.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, and rollback-safe progression commits.
 
 ## MVP boundary
 
@@ -254,7 +291,7 @@ This slice intentionally does not include login, cloud sync, friend visits, shar
 1. Validate the task/reward loop with real users and improve confusing interactions.
 2. Add an in-app migration report and an undo/history view.
 3. Add focus timer and self-care flows.
-4. Extend the rendered world with movement, placement, crafting, and unlocks.
+4. Extend the grown world with movement, placement, crafting, and new unlock tiers.
 5. Add accounts, privacy rules, friend permissions, and cloud sync only when sharing is ready.
 6. Add analytics and AI suggestions using consent-aware, explainable data.
 
