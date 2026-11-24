@@ -30,12 +30,11 @@
   // resolved when export/import runs rather than at script evaluation time.
   function worldValidator(options) {
     if (options.validateWorldState) return options.validateWorldState;
-    if (isNode) return worldState.validateState;
-    const module = root.CQ && root.CQ.worldState;
-    if (!module || typeof module.validateState !== 'function') {
+    const validator = isNode ? worldState : root.CQ && root.CQ.worldState;
+    if (!validator || typeof validator.validateAnyState !== 'function') {
       throw new Error('World state module is unavailable');
     }
-    return module.validateState;
+    return validator.validateAnyState;
   }
 
   function exportState(state, options = {}) {

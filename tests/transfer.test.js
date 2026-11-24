@@ -214,3 +214,57 @@ test('byteLength counts UTF-8 bytes', () => {
   assert.equal(transfer.byteLength('abc'), 3);
   assert.equal(transfer.byteLength('🌿'), 4);
 });
+
+function populatedV2WorldState() {
+  const state = worldState.emptyV2State();
+  state.createdAt = NOW;
+  state.updatedAt = NOW;
+  state.activeBiome = 'forest';
+  state.ownership.items.push({
+    id: 'user:item:lavender',
+    catalogId: 'decor:shrub:lavender',
+    acquiredAt: NOW,
+    source: 'migration'
+  });
+  state.biomes.forest.objects.placed.push({
+    id: 'user:placement:lavender',
+    ownedId: 'user:item:lavender',
+    kind: 'bush',
+    col: 2,
+    row: 2,
+    salt: 13
+  });
+  const checked = worldState.validateAnyState(state);
+  assert.equal(checked.ok, true, checked.issues.map((issue) => issue.message).join('; '));
+  return checked.state;
+}
+
+test('exportState and parseImport round-trip a v2 world state with the same summary shape', () => {
+  const task = populatedState();
+  const world = populatedV2WorldState();
+  const text = transfer.exportState(task, { now: NOW, worldState: world });
+  const result = transfer.parseImport(text, { now: NOW });
+
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.hasWorld, true);
+  assert.deepEqual(result.worldState, world);
+  assert.deepEqual(Object.keys(result.summary).sort(),
+    ['coins', 'doneCount', 'exportedAt', 'ledgerCount', 'resources', 'taskCount', 'xp'].sort());
+  assert.equal(result.worldStructural, false);
+});
+
+test('parseImport rejects a v2 world state carrying derived fields', () => {
+  const payload = JSON.parse(transfer.exportState(populatedState(), { now: NOW }));
+  payload.world = { ...worldState.emptyV2State(), xp: 500 };
+  const result = transfer.parseImport(JSON.stringify(payload), { now: NOW });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Invalid world backup contents/);
+  assert.equal(result.state, undefined);
+});
+
+test('exportState refuses an invalid v2 world state', () => {
+  const invalid = { ...worldState.emptyV2State(), activeBiome: 'desert' };
+  assert.throws(() => transfer.exportState(populatedState(), { now: NOW, worldState: invalid }),
+    /Cannot export invalid world state/);
+});
