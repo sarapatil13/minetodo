@@ -42,9 +42,19 @@
     flowerPetal: ['#fff0c6', '#f3b9ad', '#e8c9e2', '#fff6d8'],
     flowerCenter: '#e5ad59',
     stem: '#5d8f5c',
+    fence: '#d6bd8b',
+    fenceLight: '#e0c99d',
+    fencePost: '#c8a974',
     shadow: 'rgba(59,82,56,0.16)',
     outline: 'rgba(70,98,65,0.35)'
   };
+
+  // A biome supplies a partial palette. With no palette, every drawing path
+  // resolves to the original Phase 2.1 colors so existing scenes are unchanged.
+  function resolvePalette(palette) {
+    if (!palette || typeof palette !== 'object' || Array.isArray(palette)) return PALETTE;
+    return Object.assign({}, PALETTE, palette);
+  }
 
   function polygon(ctx, points) {
     ctx.beginPath();
@@ -92,25 +102,27 @@
     ];
   }
 
-  function drawCloud(ctx, x, y, scale) {
+  function drawCloud(ctx, x, y, scale, palette) {
+    const p = resolvePalette(palette);
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(scale, scale);
-    fillEllipse(ctx, 0, 0, 30, 10, PALETTE.cloud);
-    fillEllipse(ctx, -12, -4, 15, 13, PALETTE.cloud);
-    fillEllipse(ctx, 8, -6, 18, 15, PALETTE.cloud);
+    fillEllipse(ctx, 0, 0, 30, 10, p.cloud);
+    fillEllipse(ctx, -12, -4, 15, 13, p.cloud);
+    fillEllipse(ctx, 8, -6, 18, 15, p.cloud);
     ctx.restore();
   }
 
-  function drawBackdrop(ctx, width, height) {
+  function drawBackdrop(ctx, width, height, palette) {
+    const p = resolvePalette(palette);
     ctx.save();
     if (ctx.createLinearGradient) {
       const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, PALETTE.skyTop);
-      gradient.addColorStop(1, PALETTE.skyBottom);
+      gradient.addColorStop(0, p.skyTop);
+      gradient.addColorStop(1, p.skyBottom);
       ctx.fillStyle = gradient;
     } else {
-      ctx.fillStyle = PALETTE.skyTop;
+      ctx.fillStyle = p.skyTop;
     }
     ctx.fillRect(0, 0, width, height);
 
@@ -122,18 +134,19 @@
       ctx.fillRect(width * 0.83 - 44, height * 0.22 - 44, 88, 88);
     }
 
-    fillEllipse(ctx, width * 0.83, height * 0.22, 17, 17, PALETTE.sun);
-    drawCloud(ctx, width * 0.18, height * 0.22, 0.9);
-    drawCloud(ctx, width * 0.56, height * 0.14, 0.65);
+    fillEllipse(ctx, width * 0.83, height * 0.22, 17, 17, p.sun);
+    drawCloud(ctx, width * 0.18, height * 0.22, 0.9, p);
+    drawCloud(ctx, width * 0.56, height * 0.14, 0.65, p);
     ctx.restore();
   }
 
-  function drawGrassDetails(ctx, command, hw, hh) {
+  function drawGrassDetails(ctx, command, hw, hh, palette) {
+    const p = resolvePalette(palette);
     const spots = [
       [-0.55, -0.05], [-0.2, -0.42], [0.35, -0.22],
       [0.5, 0.12], [0.05, 0.42], [-0.38, 0.28]
     ];
-    ctx.strokeStyle = PALETTE.leafDark;
+    ctx.strokeStyle = p.leafDark;
     ctx.lineWidth = 1;
     for (let index = 0; index < spots.length; index += 1) {
       if ((command.variant + index) % 3 === 0) continue;
@@ -149,8 +162,9 @@
     }
   }
 
-  function drawPathDetails(ctx, command, hw, hh) {
-    fillPolygon(ctx, diamondPoints(command.x, command.y, hw, hh, 0.62), PALETTE.pathInner);
+  function drawPathDetails(ctx, command, hw, hh, palette) {
+    const p = resolvePalette(palette);
+    fillPolygon(ctx, diamondPoints(command.x, command.y, hw, hh, 0.62), p.pathInner);
     const pebbles = [[-0.35, 0.08], [0.2, -0.25], [0.34, 0.22], [-0.1, 0.34]];
     for (let index = 0; index < pebbles.length; index += 1) {
       if ((command.variant + index) % 4 === 0) continue;
@@ -166,14 +180,15 @@
     }
   }
 
-  function drawPondDetails(ctx, command, hw, hh) {
+  function drawPondDetails(ctx, command, hw, hh, palette) {
+    const p = resolvePalette(palette);
     fillPolygon(
       ctx,
       diamondPoints(command.x, command.y + 1, hw, hh, 0.72),
       'rgba(255,255,255,0.12)'
     );
     fillEllipse(ctx, command.x - 8, command.y - 1, 9, 4, 'rgba(214,239,228,0.55)');
-    ctx.strokeStyle = PALETTE.waterInner;
+    ctx.strokeStyle = p.waterInner;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.ellipse
@@ -183,7 +198,8 @@
     fillEllipse(ctx, command.x + 10, command.y - 4, 5, 2.5, '#7ca96d');
   }
 
-  function drawTile(ctx, command, tile) {
+  function drawTile(ctx, command, tile, palette) {
+    const p = resolvePalette(palette);
     const t = coords.normalizeTile(tile);
     const hw = t.width / 2;
     const hh = t.height / 2;
@@ -192,13 +208,13 @@
     const y = command.y;
 
     const sideFill = command.type === 'pond'
-      ? PALETTE.waterSide
-      : command.type === 'path' ? PALETTE.pathSide : PALETTE.grassSide;
+      ? p.waterSide
+      : command.type === 'path' ? p.pathSide : p.grassSide;
     const topColors = command.type === 'pond'
-      ? PALETTE.water
-      : command.type === 'path' ? PALETTE.path : PALETTE.grass;
+      ? p.water
+      : command.type === 'path' ? p.path : p.grass;
     const topFill = topColors[command.variant % topColors.length];
-    const edge = command.type === 'pond' ? PALETTE.waterSide : PALETTE.grassEdge;
+    const edge = command.type === 'pond' ? p.waterSide : p.grassEdge;
 
     fillPolygon(ctx, [
       { x: x - hw, y },
@@ -214,16 +230,18 @@
     ], sideFill);
     fillPolygon(ctx, diamondPoints(x, y, hw, hh), topFill, edge, 1);
 
-    if (command.type === 'grass') drawGrassDetails(ctx, command, hw, hh);
-    if (command.type === 'path') drawPathDetails(ctx, command, hw, hh);
-    if (command.type === 'pond') drawPondDetails(ctx, command, hw, hh);
+    if (command.type === 'grass') drawGrassDetails(ctx, command, hw, hh, p);
+    if (command.type === 'path') drawPathDetails(ctx, command, hw, hh, p);
+    if (command.type === 'pond') drawPondDetails(ctx, command, hw, hh, p);
   }
 
-  function drawShadow(ctx, x, y, rx, ry) {
-    fillEllipse(ctx, x, y, rx, ry, PALETTE.shadow);
+  function drawShadow(ctx, x, y, rx, ry, palette) {
+    const p = resolvePalette(palette);
+    fillEllipse(ctx, x, y, rx, ry, p.shadow);
   }
 
-  function foliageShape(ctx, x, y, rx, ry, fill) {
+  function foliageShape(ctx, x, y, rx, ry, fill, palette) {
+    const p = resolvePalette(palette);
     const points = [
       { x: x - rx, y: y + ry * 0.2 },
       { x: x - rx * 0.85, y: y - ry * 0.55 },
@@ -234,80 +252,82 @@
       { x: x + rx * 0.6, y: y + ry * 0.8 },
       { x: x - rx * 0.55, y: y + ry * 0.85 }
     ];
-    fillPolygon(ctx, points, fill, PALETTE.leafDark, 1);
+    fillPolygon(ctx, points, fill, p.leafDark, 1);
   }
 
-  function drawTree(ctx, command) {
+  function drawTree(ctx, command, palette) {
+    const p = resolvePalette(palette);
     const x = command.x;
     const y = command.y;
     const lean = (command.variant % 3) - 1;
 
-    drawShadow(ctx, x + 2, y + 2, 22, 7);
+    drawShadow(ctx, x + 2, y + 2, 22, 7, p);
     fillPolygon(ctx, [
       { x: x - 5, y },
       { x: x - 7 + lean, y: y - 34 },
       { x: x + 4 + lean, y: y - 34 },
       { x: x + 7, y }
-    ], PALETTE.trunk, PALETTE.trunkShade, 1);
+    ], p.trunk, p.trunkShade, 1);
     fillPolygon(ctx, [
       { x: x + 1 + lean, y: y - 34 },
       { x: x + 4 + lean, y: y - 34 },
       { x: x + 7, y },
       { x: x + 3, y }
-    ], PALETTE.trunkShade);
+    ], p.trunkShade);
 
-    foliageShape(ctx, x - 14, y - 45 + lean, 18, 17, PALETTE.leafDark);
-    foliageShape(ctx, x + 13, y - 46 - lean, 18, 17, PALETTE.leafDark);
-    foliageShape(ctx, x + lean, y - 62, 23, 19, PALETTE.leafMid);
-    foliageShape(ctx, x - 2 + lean, y - 49, 25, 18, PALETTE.leafLight);
-    fillEllipse(ctx, x - 9 + lean, y - 61, 6, 3, PALETTE.leafHighlight);
-    fillEllipse(ctx, x + 8 + lean, y - 52, 4, 2.5, PALETTE.leafHighlight);
+    foliageShape(ctx, x - 14, y - 45 + lean, 18, 17, p.leafDark, p);
+    foliageShape(ctx, x + 13, y - 46 - lean, 18, 17, p.leafDark, p);
+    foliageShape(ctx, x + lean, y - 62, 23, 19, p.leafMid, p);
+    foliageShape(ctx, x - 2 + lean, y - 49, 25, 18, p.leafLight, p);
+    fillEllipse(ctx, x - 9 + lean, y - 61, 6, 3, p.leafHighlight);
+    fillEllipse(ctx, x + 8 + lean, y - 52, 4, 2.5, p.leafHighlight);
   }
 
-  function drawHouse(ctx, command) {
+  function drawHouse(ctx, command, palette) {
+    const p = resolvePalette(palette);
     const x = command.x;
     const y = command.y;
 
-    drawShadow(ctx, x + 2, y + 5, 35, 10);
+    drawShadow(ctx, x + 2, y + 5, 35, 10, p);
 
     fillPolygon(ctx, [
       { x: x - 28, y: y - 14 },
       { x: x + 2, y: y - 28 },
       { x: x + 2, y: y - 3 },
       { x: x - 28, y: y + 11 }
-    ], PALETTE.wallFront, PALETTE.wallShade, 1);
+    ], p.wallFront, p.wallShade, 1);
     fillPolygon(ctx, [
       { x: x + 2, y: y - 28 },
       { x: x + 32, y: y - 15 },
       { x: x + 32, y: y + 9 },
       { x: x + 2, y: y - 3 }
-    ], PALETTE.wallSide, PALETTE.wallShade, 1);
+    ], p.wallSide, p.wallShade, 1);
 
     fillPolygon(ctx, [
       { x: x - 34, y: y - 38 },
       { x: x + 2, y: y - 56 },
       { x: x + 2, y: y - 40 },
       { x: x - 34, y: y - 22 }
-    ], PALETTE.roof, PALETTE.roofDark, 1.5);
+    ], p.roof, p.roofDark, 1.5);
     fillPolygon(ctx, [
       { x: x + 2, y: y - 56 },
       { x: x + 36, y: y - 40 },
       { x: x + 36, y: y - 23 },
       { x: x + 2, y: y - 40 }
-    ], PALETTE.roofDark, PALETTE.roofDark, 1.5);
+    ], p.roofDark, p.roofDark, 1.5);
     fillPolygon(ctx, [
       { x: x - 30, y: y - 37 },
       { x: x + 1, y: y - 53 },
       { x: x + 1, y: y - 50 },
       { x: x - 30, y: y - 34 }
-    ], PALETTE.roofLight);
+    ], p.roofLight);
 
     fillPolygon(ctx, [
       { x: x - 19, y: y - 15 },
       { x: x - 8, y: y - 20 },
       { x: x - 8, y: y - 4 },
       { x: x - 19, y: y + 2 }
-    ], PALETTE.door, PALETTE.wallShade, 1);
+    ], p.door, p.wallShade, 1);
     fillEllipse(ctx, x - 13, y - 7, 1.4, 1.4, '#e8c879');
 
     fillPolygon(ctx, [
@@ -315,7 +335,7 @@
       { x: x + 24, y: y - 19 },
       { x: x + 24, y: y - 9 },
       { x: x + 10, y: y - 15 }
-    ], PALETTE.window, '#fff0cf', 2);
+    ], p.window, '#fff0cf', 2);
     ctx.strokeStyle = '#fff0cf';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -328,16 +348,17 @@
       { x: x + 24, y: y - 51 },
       { x: x + 24, y: y - 38 },
       { x: x + 16, y: y - 42 }
-    ], PALETTE.roofDark, PALETTE.wallShade, 1);
+    ], p.roofDark, p.wallShade, 1);
     fillPolygon(ctx, [
       { x: x + 16, y: y - 55 },
       { x: x + 24, y: y - 51 },
       { x: x + 24, y: y - 49 },
       { x: x + 16, y: y - 53 }
-    ], PALETTE.roofLight);
+    ], p.roofLight);
   }
 
-  function drawFlower(ctx, x, y, color, size) {
+  function drawFlower(ctx, x, y, color, size, palette) {
+    const p = resolvePalette(palette);
     for (let petal = 0; petal < 5; petal += 1) {
       const angle = (petal / 5) * Math.PI * 2;
       fillEllipse(
@@ -349,15 +370,16 @@
         color
       );
     }
-    fillEllipse(ctx, x, y, size * 0.55, size * 0.55, PALETTE.flowerCenter);
+    fillEllipse(ctx, x, y, size * 0.55, size * 0.55, p.flowerCenter);
   }
 
-  function drawFlowers(ctx, command) {
+  function drawFlowers(ctx, command, palette) {
+    const p = resolvePalette(palette);
     const positions = [[-13, -4], [0, -15], [12, -7], [4, 2]];
-    const color = PALETTE.flowerPetal[command.variant % PALETTE.flowerPetal.length];
+    const color = p.flowerPetal[command.variant % p.flowerPetal.length];
 
-    drawShadow(ctx, command.x, command.y + 2, 17, 5);
-    ctx.strokeStyle = PALETTE.stem;
+    drawShadow(ctx, command.x, command.y + 2, 17, 5, p);
+    ctx.strokeStyle = p.stem;
     ctx.lineWidth = 1.4;
     for (let index = 0; index < positions.length; index += 1) {
       if ((command.variant + index) % 5 === 0) continue;
@@ -368,26 +390,28 @@
       ctx.moveTo(x, command.y + 1);
       ctx.lineTo(x, y + 4);
       ctx.stroke();
-      drawFlower(ctx, x, y, color, 3.2);
+      drawFlower(ctx, x, y, color, 3.2, p);
     }
   }
 
-  function drawBush(ctx, command) {
+  function drawBush(ctx, command, palette) {
+    const p = resolvePalette(palette);
     const x = command.x;
     const y = command.y;
-    drawShadow(ctx, x, y + 2, 19, 6);
-    foliageShape(ctx, x - 9, y - 9, 14, 12, PALETTE.leafDark);
-    foliageShape(ctx, x + 9, y - 10, 13, 12, PALETTE.leafMid);
-    foliageShape(ctx, x, y - 16, 15, 12, PALETTE.leafLight);
-    fillEllipse(ctx, x - 5, y - 18, 4, 2, PALETTE.leafHighlight);
+    drawShadow(ctx, x, y + 2, 19, 6, p);
+    foliageShape(ctx, x - 9, y - 9, 14, 12, p.leafDark, p);
+    foliageShape(ctx, x + 9, y - 10, 13, 12, p.leafMid, p);
+    foliageShape(ctx, x, y - 16, 15, 12, p.leafLight, p);
+    fillEllipse(ctx, x - 5, y - 18, 4, 2, p.leafHighlight);
   }
 
-  function drawReeds(ctx, command) {
+  function drawReeds(ctx, command, palette) {
+    const p = resolvePalette(palette);
     const x = command.x;
     const y = command.y;
     const offsets = [-11, -2, 8];
-    drawShadow(ctx, x, y + 2, 17, 4);
-    ctx.strokeStyle = PALETTE.stem;
+    drawShadow(ctx, x, y + 2, 17, 4, p);
+    ctx.strokeStyle = p.stem;
     ctx.lineWidth = 1.5;
     for (let index = 0; index < offsets.length; index += 1) {
       const dx = offsets[index];
@@ -401,18 +425,19 @@
     }
   }
 
-  function drawFence(ctx, command) {
+  function drawFence(ctx, command, palette) {
+    const p = resolvePalette(palette);
     const x = command.x;
     const y = command.y;
-    drawShadow(ctx, x, y + 3, 24, 5);
+    drawShadow(ctx, x, y + 3, 24, 5, p);
     fillPolygon(ctx, [
       { x: x - 24, y: y - 5 }, { x: x + 21, y: y - 16 },
       { x: x + 23, y: y - 13 }, { x: x - 22, y: y - 2 }
-    ], '#d6bd8b', PALETTE.wallShade, 1);
+    ], p.fence, p.wallShade, 1);
     fillPolygon(ctx, [
       { x: x - 24, y: y - 12 }, { x: x + 21, y: y - 23 },
       { x: x + 23, y: y - 20 }, { x: x - 22, y: y - 9 }
-    ], '#e0c99d', PALETTE.wallShade, 1);
+    ], p.fenceLight, p.wallShade, 1);
     for (const dx of [-20, 0, 19]) {
       const postY = y - dx * 0.25;
       fillPolygon(ctx, [
@@ -420,18 +445,18 @@
         { x: x + dx + 3, y: postY - 16 },
         { x: x + dx + 3, y: postY + 3 },
         { x: x + dx - 3, y: postY + 5 }
-      ], '#c8a974', PALETTE.wallShade, 1);
+      ], p.fencePost, p.wallShade, 1);
     }
   }
 
-  function drawObject(ctx, command) {
+  function drawObject(ctx, command, tile, palette) {
     switch (command.kind) {
-      case 'tree': drawTree(ctx, command); break;
-      case 'house': drawHouse(ctx, command); break;
-      case 'flowers': drawFlowers(ctx, command); break;
-      case 'bush': drawBush(ctx, command); break;
-      case 'reeds': drawReeds(ctx, command); break;
-      case 'fence': drawFence(ctx, command); break;
+      case 'tree': drawTree(ctx, command, palette); break;
+      case 'house': drawHouse(ctx, command, palette); break;
+      case 'flowers': drawFlowers(ctx, command, palette); break;
+      case 'bush': drawBush(ctx, command, palette); break;
+      case 'reeds': drawReeds(ctx, command, palette); break;
+      case 'fence': drawFence(ctx, command, palette); break;
       default: break;
     }
   }
@@ -493,9 +518,9 @@
     drawWorld(ctx, scene, feedback) {
       for (const command of scene.commands) {
         if (command.layer === 'ground') {
-          api.drawTile(ctx, command, scene.tile);
+          api.drawTile(ctx, command, scene.tile, scene.palette);
         } else if (command.layer === 'object') {
-          api.drawObject(ctx, command, scene.tile);
+          api.drawObject(ctx, command, scene.tile, scene.palette);
         }
       }
       drawFeedback(ctx, feedback);

@@ -79,11 +79,22 @@
     return commands.sort(compareDrawCommands);
   }
 
+  function normalizePalette(palette) {
+    if (!palette || typeof palette !== 'object' || Array.isArray(palette)) return null;
+    const result = {};
+    Object.keys(palette).forEach((key) => {
+      const value = palette[key];
+      result[key] = Array.isArray(value) ? value.slice() : value;
+    });
+    return result;
+  }
+
   function createScene(map, options) {
     const settings = options || {};
     const origin = coords.normalizeOrigin(settings.origin);
     const tile = coords.normalizeTile(settings.tile);
-    return {
+    const palette = normalizePalette(settings.palette);
+    const scene = {
       name: map.name || 'World',
       map,
       origin,
@@ -91,6 +102,9 @@
       bounds: coords.sceneBounds(map, origin, tile),
       commands: buildDrawCommands(map, { origin, tile })
     };
+    // Omitted palettes leave the scene shape identical to Phase 2.6.
+    if (palette) scene.palette = palette;
+    return scene;
   }
 
   return {

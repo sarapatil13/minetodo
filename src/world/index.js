@@ -31,6 +31,9 @@
   const infoPanel = isNode ? require('./infoPanel.js') : root.CQ.worldInfoPanel;
   const interaction = isNode ? require('./interaction.js') : root.CQ.worldInteraction;
   const progression = isNode ? require('./progression.js') : root.CQ.worldProgression;
+  const contentCatalog = isNode ? require('./contentCatalog.js') : root.CQ.worldContentCatalog;
+  const unlocks = isNode ? require('./unlocks.js') : root.CQ.worldUnlocks;
+  const biomeCatalog = isNode ? require('./biomeCatalog.js') : root.CQ.worldBiomeCatalog;
   const content = isNode ? require('./content.js') : root.CQ.worldContent;
   const progressionConfig = isNode
     ? require('../progressionConfig.js')
@@ -81,6 +84,9 @@
     infoPanel,
     interaction,
     progression,
+    contentCatalog,
+    unlocks,
+    biomeCatalog,
     content,
     progressionConfig,
     controller,

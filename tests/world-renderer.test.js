@@ -157,3 +157,67 @@ test('drawWorld preserves the default command order with an empty feedback objec
 
   assert.deepEqual(seen, built.commands.map((command) => command.id));
 });
+
+test('drawBackdrop accepts a palette override without mutating the default palette', () => {
+  const baseTop = renderer.PALETTE.skyTop;
+  const ctx = createContext();
+  renderer.drawBackdrop(ctx, 320, 180, { skyTop: '#010203', skyBottom: '#040506' });
+  const stops = ctx.calls
+    .filter((call) => call.name === 'addColorStop')
+    .map((call) => call.args[1]);
+  assert.ok(stops.includes('#010203'));
+  assert.ok(stops.includes('#040506'));
+  assert.equal(renderer.PALETTE.skyTop, baseTop);
+});
+
+test('drawTile and drawObject use palette colors when supplied', () => {
+  const applied = [];
+  const ctx = createContext();
+  Object.defineProperty(ctx, 'fillStyle', {
+    configurable: true,
+    get: () => applied[applied.length - 1],
+    set: (value) => { applied.push(value); }
+  });
+
+  const grass = sceneData.buildDrawCommands(mapData.createSampleMeadow())
+    .find((command) => command.layer === 'ground' && command.type === 'grass');
+  renderer.drawTile(ctx, grass, { width: 48, height: 24 }, {
+    grass: ['#123456'],
+    grassSide: '#654321',
+    grassEdge: '#abcdef'
+  });
+  assert.ok(applied.includes('#123456'));
+  assert.ok(applied.includes('#654321'));
+  assert.equal(renderer.PALETTE.grass[0], '#a8c98b');
+
+  const fence = { kind: 'fence', x: 0, y: 0, variant: 0 };
+  renderer.drawObject(ctx, fence, null, {
+    fence: '#111111',
+    fenceLight: '#222222',
+    fencePost: '#333333'
+  });
+  assert.ok(applied.includes('#111111'));
+  assert.ok(applied.includes('#222222'));
+  assert.ok(applied.includes('#333333'));
+});
+
+test('drawWorld forwards the scene palette to every command renderer', () => {
+  const palette = { skyTop: '#010203' };
+  const built = sceneData.createScene(mapData.createSampleMeadow(), { palette });
+  const ctx = createContext();
+  const seen = [];
+  const originalTile = renderer.drawTile;
+  const originalObject = renderer.drawObject;
+
+  renderer.drawTile = (_ctx, command, tile, received) => seen.push({ id: command.id, palette: received });
+  renderer.drawObject = (_ctx, command, tile, received) => seen.push({ id: command.id, palette: received });
+  try {
+    renderer.drawWorld(ctx, built);
+  } finally {
+    renderer.drawTile = originalTile;
+    renderer.drawObject = originalObject;
+  }
+
+  assert.equal(seen.length, built.commands.length);
+  assert.ok(seen.every((entry) => entry.palette === built.palette));
+});

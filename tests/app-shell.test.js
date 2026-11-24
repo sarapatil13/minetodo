@@ -35,6 +35,18 @@ test('world content loads before the public adapter and persistence modules load
   assert.ok(worldStateIndex < commitIndex);
 });
 
+test('Phase 2.7 catalog scripts load before the public world adapter', () => {
+  const sources = scripts.map(scriptSource);
+  const catalogIndex = sources.indexOf('src/world/contentCatalog.js');
+  const unlocksIndex = sources.indexOf('src/world/unlocks.js');
+  const biomesIndex = sources.indexOf('src/world/biomeCatalog.js');
+  const adapterIndex = sources.indexOf('src/world/index.js');
+
+  assert.ok(catalogIndex !== -1 && catalogIndex < unlocksIndex);
+  assert.ok(unlocksIndex !== -1 && unlocksIndex < biomesIndex);
+  assert.ok(biomesIndex !== -1 && biomesIndex < adapterIndex);
+});
+
 test('the world reset control has a matching style rule', () => {
   assert.match(html, /id="reset-world"/);
   assert.match(css, /\.world-reset\b/);

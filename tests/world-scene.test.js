@@ -117,3 +117,18 @@ test('createScene includes full object extents in its bounds', () => {
   assert.ok(built.bounds.width > 0);
   assert.ok(built.bounds.height > 0);
 });
+
+test('createScene carries an optional isolated palette without changing the default shape', () => {
+  const map = mapData.createSampleMeadow();
+  const plain = scene.createScene(map);
+  assert.equal(Object.prototype.hasOwnProperty.call(plain, 'palette'), false);
+
+  const source = { skyTop: '#010203', grass: ['#111111', '#222222'] };
+  const built = scene.createScene(map, { palette: source });
+  assert.deepEqual(built.palette, source);
+  assert.notEqual(built.palette, source);
+  assert.notEqual(built.palette.grass, source.grass);
+
+  source.grass[0] = '#ffffff';
+  assert.equal(built.palette.grass[0], '#111111');
+});

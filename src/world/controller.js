@@ -110,7 +110,7 @@
 
     let world = settings.scene || sceneData.createScene(
       settings.map || mapData.createSampleMeadow(),
-      { origin: settings.origin, tile: settings.tile }
+      { origin: settings.origin, tile: settings.tile, palette: settings.palette }
     );
     const maxDpr = Number.isFinite(settings.maxDpr) ? settings.maxDpr : MAX_DPR;
     const observeTarget = settings.observeTarget || canvas.parentElement || canvas;
@@ -176,7 +176,7 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, metrics.width, metrics.height);
       ctx.setTransform(metrics.dpr, 0, 0, metrics.dpr, 0, 0);
-      renderer.drawBackdrop(ctx, size.width, size.height);
+      renderer.drawBackdrop(ctx, size.width, size.height, world.palette);
 
       ctx.save();
       ctx.translate(view.x, view.y);

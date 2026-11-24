@@ -218,6 +218,7 @@
     const origin = coords.normalizeOrigin(settings.origin);
     const tile = coords.normalizeTile(settings.tile);
     const sceneOptions = { origin, tile };
+    if (settings.palette !== undefined) sceneOptions.palette = settings.palette;
 
     let derivedMap;
     try {
