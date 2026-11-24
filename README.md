@@ -10,7 +10,7 @@ A local-first, browser-based prototype for cozy productivity and self-care. **Co
 
 No backend, account, package installation, or build step is required. The app uses classic scripts only, so it keeps working from `file://`. The optional Google Font falls back to system sans-serif when offline.
 
-Progress is saved in this browser using `localStorage`. This means it stays on the current device/browser profile and is not synced.
+Progress is saved in this browser using `localStorage`. Task state and user-owned world changes use separate keys; XP, levels, stages, and earned decorations are recalculated on load. This means progress stays on the current device/browser profile and is not synced.
 
 ## What's implemented
 
@@ -21,6 +21,7 @@ Progress is saved in this browser using `localStorage`. This means it stays on t
 - Permanent reward ledger: completing a task earns a reward once, forever.
 - XP levels and a basic resource inventory.
 - A world that grows from earned XP, with four stages and two intermediate milestones.
+- Validated, persistent user world changes layered over that derived world, plus a reset for saved changes.
 - All / To do / Completed filters.
 - A Canvas 2D isometric meadow renderer with terrain, trees, flowers, a pond and a starter house.
 - Canonical terrain definitions, aliases, immutable grid queries, and validated terrain updates.
@@ -64,10 +65,10 @@ Rewards are permanent once earned:
 
 ## Storage and migration
 
-The app uses two `localStorage` keys:
+The app recognizes three primary `localStorage` keys, plus timestamped backup and recovery keys:
 
 - `cozyquest.mvp.v1` — the original prototype data. It is left untouched.
-- `cozyquest.task-engine.v2` — the active state, written as:
+- `cozyquest.task-engine.v2` — the active task state, written as:
 
 ```json
 {
@@ -78,15 +79,33 @@ The app uses two `localStorage` keys:
 }
 ```
 
-On first load, valid v1 data is migrated into v2. Known completed-task rewards are moved into the ledger and subtracted from the old totals to form the baseline, so the numbers shown to the user are unchanged. The completed count is recalculated from tasks. Malformed stored data is quarantined under `cozyquest.invalid-backup.<timestamp>` instead of silently overwriting user progress.
+- `cozyquest.world-state.v1` — optional, user-owned world changes, written as:
+
+```json
+{
+  "schemaVersion": 1,
+  "worldId": "meadow-haven",
+  "baseMapId": "sample-meadow-v1",
+  "name": "Meadow Haven",
+  "createdAt": "",
+  "updatedAt": "",
+  "objects": { "placed": [], "moved": [], "removed": [] },
+  "terrain": []
+}
+```
+
+The world key stores deltas only: no XP, stage, milestone claim, derived decoration, or reward value. An absent key means no saved user changes.
+
+On first load, valid v1 task data is migrated into v2. Known completed-task rewards are moved into the ledger and subtracted from the old totals to form the baseline, so the numbers shown to the user are unchanged. The completed count is recalculated from tasks. Malformed task data is quarantined under `cozyquest.invalid-backup.<timestamp>` instead of silently overwriting user progress. Malformed or unsupported world data is quarantined under `cozyquest.invalid-world-backup.<timestamp>` and never affects task state.
 
 ## JSON export and import
 
 Use the **Export** and **Import** buttons above the task list.
 
-- Export downloads a `cozyquest-backup-YYYY-MM-DD.json` envelope containing the app name, schema version, timestamp, and full v2 state.
-- Import validates the whole file before asking for confirmation. The confirmation shows task count, completed count, ledger count, and derived totals.
-- Before applying an accepted import, the current state is saved under `cozyquest.backup.<timestamp>`. The newest three backups are kept.
+- Export downloads a `cozyquest-backup-YYYY-MM-DD.json` envelope containing the app name, schema version, timestamp, full v2 task state, and an optional `world` block with user-owned world changes.
+- Import validates the whole file before asking for confirmation. The confirmation shows task count, completed count, ledger count, derived totals, and whether world changes are included.
+- A backup without `world` restores task state and keeps the current world. A backup with valid `world` replaces saved world changes. Explicit but invalid world data is rejected before confirmation or writes.
+- Before applying an accepted import, the current task state is saved under `cozyquest.backup.<timestamp>`; when world state is being replaced, it is also saved under `cozyquest.world-backup.<timestamp>`. The newest three of each are kept.
 - Imports are capped at 1 MB. Malformed JSON, foreign backups, unsupported versions, and forged or arbitrary reward ledger values are rejected safely.
 - Because v2 stores no standalone totals fields, stray imported XP/coin/completed values are ignored; totals are always recalculated from the baseline plus the validated ledger.
 
@@ -116,7 +135,10 @@ src/world/interactionState.js   immutable hover, selection, focus and pointer st
 src/world/infoPanel.js       DOM-only detail panel updates and close handling
 src/world/interaction.js     tap, hover, keyboard focus, selection and feedback lifecycle
 src/world/controller.js      DPR-aware sizing, camera and interaction lifecycle, scheduling and cleanup
+src/world/content.js         pure composition of derived progression and saved user deltas
 src/world/index.js           public CQ.world.mount(...) adapter
+src/worldState.js            versioned world-delta validation, storage, quarantine and backups
+src/stateCommit.js           validated two-domain commits, rollback and recovery marker
 tests/*.test.js         dependency-free node:test suites
 ```
 
@@ -257,7 +279,7 @@ There are no other world thresholds. Every unlock is derived from XP, monotonic,
 
 Maps are composed from a fresh `CQ.world.createSampleMeadow()`; the base factory is never mutated or overwritten. Generated records use stable `progression-*` IDs and only the existing supported object kinds. They occupy fixed interior anchors, so every composed map validates, has unique IDs and anchors, keeps every base object unchanged, and has exactly the same `sceneBounds()` as the zero-XP meadow. Three grass-to-path tile patches use the existing tile validator with salt `3`. The zero-XP map is byte-for-byte the original sample meadow, and zero-XP screenshots remain unchanged; the progress row is hidden at 0 XP while still exposing text to assistive technology.
 
-State, storage, progress display, and the world are committed together. `app.js` preflights the composed map, target index, XP and bounds before saving, then calls the in-place controller update. The world handle, camera focus/zoom, canvas listeners, target identity, and `inspect().view` shape are preserved; the world is never remounted on a task update. If the live target index cannot be replaced, the previous world and XP are restored before the state is rolled back and saved again.
+In Phase 2.5, state and the derived world were updated through one preflighted commit. `app.js` validated the composed map, target index, XP and bounds before saving, then called the in-place controller update. The world handle, camera focus/zoom, canvas listeners, target identity, and `inspect().view` shape are preserved; the world is never remounted on a task update. If the live target index could not be replaced, the previous world and XP were restored before the state was rolled back. Phase 2.6 keeps the in-place update model but separates task and world storage domains.
 
 Imports recompute the derived stage from the imported ledger. An import with less lifetime XP can therefore lower the derived stage and remove decorations that are no longer earned; this is intentional because nothing about stage is persisted. Exports and the authoritative ledger are unchanged.
 
@@ -272,6 +294,36 @@ Phase 2.5 also adds:
 
 Phase 2.5 does not add player movement, object placement or editing, world-map persistence, biomes, inventory, crafting, shops, cloud sync, new reward values, or additional unlock thresholds.
 
+## Phase 2.6 persistent world state
+
+Phase 2.6 persists only user-owned world modifications. XP, level, stage, milestone decorations, progression terrain patches, coins, and resources remain derived. The only XP authority is still `rules.computeTotals(state).xp`; task mutations never rewrite `cozyquest.world-state.v1`. `src/world/content.js` is a pure module with no localStorage, DOM, app state, or UI callbacks.
+
+### Storage and validation
+
+The active key is `cozyquest.world-state.v1` with `schemaVersion: 1`. It holds deltas only: `objects.placed`, `objects.moved`, `objects.removed`, and `terrain`. An absent key means no saved user changes. `CQ.worldState` exposes `emptyState()`, `validateState()`, `loadState()`, `saveState()`, `backupState()`, `createId()`, and `reservedIds()`.
+
+Validation is deterministic and uses canonical ordering. Structural or unsupported-schema failures are quarantined under `cozyquest.invalid-world-backup.<timestamp>`; cleaned states with invalid individual records return `ok: true` plus issues after those records are skipped. Duplicate IDs are never resolved arbitrarily, reserved base or progression IDs are rejected for user-created objects, and bad kinds, coordinates, salts, terrain, or occupied cells are reported. World quarantine never affects task state.
+
+### Composition and rendering
+
+`CQ.world.content.compose({ baseMap, xp, state })` applies derived progression first and saved user deltas second, returning a validated scene plus any issues. The base meadow factory is not mutated, IDs and ordering are stable, and scene bounds remain unchanged. `CQ.world.mount(...)` still returns one canvas and the same handle API; commits preflight the composed scene and update it in place without remounting or duplicating listeners.
+
+### Commits and recovery
+
+`CQ.stateCommit.commit(...)` validates both domains, composes and preflights the scene, preserves previous raw values, writes optional backups, then writes only the requested domain keys. Failed writes roll back to the previous bytes. `localStorage` does not provide cross-key atomicity: the app validates and preflights before writing, handles write and rollback exceptions, and reports any rollback failure explicitly instead of claiming atomicity.
+
+If a rollback write also fails, `cozyquest.commit-recovery.v1` is saved and replayed by `CQ.stateCommit.recover(store)` at startup before any domain is loaded. Failure-injection tests cover task-state write failure, world-state write failure, task rollback failure, world rollback failure, and backup write failure.
+
+Task-only mutations write only the task key. World edits and reset write only the world key. Imports select task-only or task+world domains from the backup envelope; an absent `world` block is not a world reset.
+
+### Backup, import, and reset
+
+Backups include an optional `world` block. An older task-only backup restores task state while keeping the existing world. An explicit invalid world block is rejected before confirmation or writes. The **Reset world changes** control asks for confirmation, clears only saved user deltas, and leaves task state and derived progression unchanged; cancelling or having no saved changes writes nothing.
+
+### Public APIs and scope
+
+Phase 2.6 adds `CQ.worldState`, `CQ.stateCommit`, and `CQ.world.content`; `CQ.world.mount(...)` and its handle API are unchanged. `index.html` loads world content before `src/world/index.js` and persistence helpers before `app.js`, still with classic scripts from `file://`. This phase does not add an editor UI, inventory or crafting, shops or economy, new biomes, multiplayer or cloud sync, camera persistence, or object rotation.
+
 ## Tests
 
 Run the complete automated suite from this directory:
@@ -280,7 +332,7 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, and rollback-safe progression commits.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, rollback-safe progression commits, versioned world-state validation and quarantine, pure world composition, two-domain commit and recovery handling, world-aware backup envelopes, and classic script order/reset control.
 
 ## MVP boundary
 
@@ -291,7 +343,7 @@ This slice intentionally does not include login, cloud sync, friend visits, shar
 1. Validate the task/reward loop with real users and improve confusing interactions.
 2. Add an in-app migration report and an undo/history view.
 3. Add focus timer and self-care flows.
-4. Extend the grown world with movement, placement, crafting, and new unlock tiers.
+4. Extend the grown world with movement, an in-app placement editor, crafting, and new unlock tiers.
 5. Add accounts, privacy rules, friend permissions, and cloud sync only when sharing is ready.
 6. Add analytics and AI suggestions using consent-aware, explainable data.
 
