@@ -51,6 +51,8 @@ test('public adapter exposes world modules and sample factory', () => {
   assert.equal(typeof world.interactionState.createState, 'function');
   assert.equal(typeof world.interaction.create, 'function');
   assert.equal(typeof world.infoPanel.attach, 'function');
+  assert.equal(world.content, require('../src/world/content.js'));
+  assert.equal(typeof world.content.compose, 'function');
   assert.equal(typeof world.progression.worldProgress, 'function');
   assert.equal(typeof world.progression.composeProgressionMap, 'function');
   assert.deepEqual(world.progressionConfig.WORLD_STAGES.map((stage) => stage.minXp), [0, 100, 500, 1400]);
@@ -112,6 +114,39 @@ test('mount at zero XP keeps the exact base meadow', () => {
     assert.equal(JSON.stringify(handle.world.map), JSON.stringify(world.createSampleMeadow()));
     assert.equal(handle.world.commands.length, 118);
     assert.equal(handle.inspect().progression.stageId, 'starting-meadow');
+  } finally {
+    handle.destroy();
+  }
+});
+
+test('mount accepts a precomposed scene containing saved user objects', () => {
+  const composition = world.content.compose({
+    xp: 500,
+    state: {
+      objects: {
+        placed: [{ id: 'user:desk', kind: 'flowers', col: 4, row: 4, salt: 1 }],
+        moved: [],
+        removed: []
+      },
+      terrain: []
+    }
+  });
+  assert.equal(composition.ok, true);
+
+  const canvas = createCanvas();
+  const handle = world.mount(canvas, {
+    maxDpr: 1,
+    xp: 500,
+    scene: composition.scene
+  });
+
+  try {
+    assert.ok(handle);
+    assert.ok(handle.world.map.objects.some((object) => object.id === 'user:desk'));
+    assert.equal(handle.world.commands.length, 128);
+    assert.equal(handle.inspect().progression.stageId, 'developed-village');
+    assert.equal(typeof handle.preflightProgression, 'function');
+    assert.equal(typeof handle.setProgression, 'function');
   } finally {
     handle.destroy();
   }

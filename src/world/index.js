@@ -31,6 +31,7 @@
   const infoPanel = isNode ? require('./infoPanel.js') : root.CQ.worldInfoPanel;
   const interaction = isNode ? require('./interaction.js') : root.CQ.worldInteraction;
   const progression = isNode ? require('./progression.js') : root.CQ.worldProgression;
+  const content = isNode ? require('./content.js') : root.CQ.worldContent;
   const progressionConfig = isNode
     ? require('../progressionConfig.js')
     : root.CQ.progressionConfig;
@@ -80,6 +81,7 @@
     infoPanel,
     interaction,
     progression,
+    content,
     progressionConfig,
     controller,
     mount,
