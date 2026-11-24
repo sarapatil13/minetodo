@@ -3,6 +3,11 @@ const $ = (id) => document.getElementById(id);
 const rules = window.CQ.rules;
 const storage = window.CQ.storage;
 const transfer = window.CQ.transfer;
+const world = window.CQ.world;
+const worldProgression = world.progression;
+const progressionConfig = window.CQ.progressionConfig;
+const baseWorldMap = world.createSampleMeadow();
+let worldHandle = null;
 
 const store = {
   getItem: (key) => localStorage.getItem(key),
@@ -29,14 +34,7 @@ function newId() {
 }
 
 function levelInfo(xp) {
-  const levels = [
-    ['Seedling', 0],
-    ['Sprout', 100],
-    ['Sapling', 250],
-    ['Bloom', 500],
-    ['Grove Keeper', 900],
-    ['Forest Guardian', 1400]
-  ];
+  const levels = progressionConfig.LEVELS;
   let current = levels[0];
   let next = levels[1];
   for (let i = 0; i < levels.length; i++) {
@@ -58,7 +56,7 @@ function renderStats() {
   $('stone').textContent = totals.resources.stone;
   $('iron').textContent = totals.resources.iron;
   $('level-name').textContent = level.name;
-  $('level-label').textContent = `Level ${['Seedling', 'Sprout', 'Sapling', 'Bloom', 'Grove Keeper', 'Forest Guardian'].indexOf(level.name) + 1} · ${level.name}`;
+  $('level-label').textContent = `Level ${progressionConfig.LEVELS.findIndex((entry) => entry[0] === level.name) + 1} · ${level.name}`;
   if (level.next) {
     const span = level.next[1] - level.base;
     const earned = totals.xp - level.base;
@@ -69,6 +67,141 @@ function renderStats() {
     $('level-progress-text').textContent = 'Max level';
     $('xp-bar').style.width = '100%';
     $('next-level').textContent = 'Your meadow is thriving!';
+  }
+}
+
+function featureLabel(id) {
+  const feature = worldProgression.FEATURES.find((entry) => entry.id === id);
+  return feature ? feature.label : id;
+}
+
+function stageName(id) {
+  const stage = worldProgression.STAGES.find((entry) => entry.id === id);
+  return stage ? stage.name : id;
+}
+
+function growthEvent(result) {
+  if (!result) return '';
+  const additions = Array.from(result.addedFeatures || []).map(featureLabel);
+  if (result.stageChanged) {
+    const transition = `${stageName(result.previous.stageId)} → ${result.progress.stage.name}`;
+    return additions.length ? `${transition}: ${additions.join(', ')}` : transition;
+  }
+  if (additions.length) return `${result.progress.stage.name}: ${additions.join(', ')}`;
+  if (Array.from(result.removedFeatures || []).length) {
+    return `World restored to ${result.progress.stage.name}.`;
+  }
+  return '';
+}
+
+function withGrowthFeedback(message, result) {
+  const event = growthEvent(result);
+  return event ? `${message} · ${event}` : message;
+}
+
+function updateWorldGrowth(result) {
+  const progress = result.progress;
+  const row = $('world-growth');
+  row.hidden = progress.xp === 0;
+
+  $('world-stage-name').textContent = progress.stage.name;
+  $('world-stage-xp').textContent = `${progress.xp} XP`;
+  $('world-next-unlock').textContent = progress.nextUnlock
+    ? `Next world feature at ${progress.nextUnlock.minXp} XP: ${progress.nextUnlock.label}`
+    : 'Every world feature is blooming.';
+  $('world-growth-features').textContent = progress.unlockedFeatures.length
+    ? Array.from(progress.unlockedFeatures).map(featureLabel).join(' · ')
+    : 'The meadow is resting.';
+
+  const event = growthEvent(result);
+  const eventEl = $('world-growth-event');
+  eventEl.textContent = event;
+  eventEl.hidden = !event;
+  $('world-progress-status').textContent = event
+    ? `${progress.stage.name}. ${event}. ${$('world-next-unlock').textContent}.`
+    : `${progress.stage.name}. ${$('world-next-unlock').textContent}.`;
+}
+
+function syntheticGrowthResult(xp) {
+  const progress = worldProgression.worldProgress(xp);
+  return {
+    xp: progress.xp,
+    progress,
+    previous: { stageId: 'starting-meadow', unlockedFeatures: [] },
+    stageChanged: progress.stage.id !== 'starting-meadow',
+    addedFeatures: progress.unlockedFeatures,
+    removedFeatures: []
+  };
+}
+
+function prepareProgression(xp) {
+  if (!worldHandle) return null;
+  const prepared = {
+    xp,
+    scene: worldProgression.createProgressionScene(baseWorldMap, xp)
+  };
+  const checked = worldHandle.preflightProgression(prepared);
+  if (!checked.ok) throw new Error(checked.error);
+  return prepared;
+}
+
+function restoreWorld(xp) {
+  if (!worldHandle) return;
+  const currentXp = worldHandle.inspect().progression.xp;
+  if (currentXp === xp) return;
+  worldHandle.setProgression({
+    xp,
+    scene: worldProgression.createProgressionScene(baseWorldMap, xp)
+  });
+}
+
+// State, storage, progress display and the world are committed together. The
+// scene is preflighted before saving; if the in-place world update fails, the
+// previous state is restored and saved again so no mismatched stage is shown.
+function commitState(nextState, options) {
+  const settings = options || {};
+  const previousState = state;
+  const xp = rules.computeTotals(nextState).xp;
+  let prepared = null;
+
+  try {
+    prepared = prepareProgression(xp);
+  } catch (error) {
+    notify('World update cancelled: ' + error.message, 'error');
+    return false;
+  }
+
+  const saved = storage.saveState(store, nextState);
+  if (!saved.ok) console.warn('CozyQuest save issues:', saved.issues);
+  state = nextState;
+
+  try {
+    const result = worldHandle
+      ? worldHandle.setProgression(prepared)
+      : syntheticGrowthResult(xp);
+    if (!worldHandle) {
+      worldHandle = world.mount(document.getElementById('world-canvas'), {
+        infoPanel: document.getElementById('world-info-panel'),
+        xp
+      });
+    }
+    render();
+    updateWorldGrowth(result);
+    if (settings.message) notify(withGrowthFeedback(settings.message, result), settings.tone);
+    return true;
+  } catch (error) {
+    state = previousState;
+    const restored = storage.saveState(store, previousState);
+    if (!restored.ok) console.warn('CozyQuest save issues:', restored.issues);
+    render();
+    try {
+      restoreWorld(rules.computeTotals(previousState).xp);
+    } catch (rollbackError) {
+      console.warn('CozyQuest world rollback issue:', rollbackError);
+    }
+    updateWorldGrowth(syntheticGrowthResult(rules.computeTotals(previousState).xp));
+    notify('World update failed: ' + error.message, 'error');
+    return false;
   }
 }
 
@@ -133,12 +266,6 @@ function renderTasks() {
 function render() {
   renderStats();
   renderTasks();
-}
-
-function persistAndRender() {
-  const saved = storage.saveState(store, state);
-  if (!saved.ok) console.warn('CozyQuest save issues:', saved.issues);
-  render();
 }
 
 function notify(message, tone = 'info') {
@@ -220,17 +347,15 @@ $('task-form').addEventListener('submit', (e) => {
     const patch = current.done ? fields : { ...fields, priority: readPriority() };
     const result = rules.editTask(state, editingId, patch);
     if (!result.ok) { notify('Could not update task: ' + result.issues[0], 'error'); return; }
-    state = result.state;
-    notify('Task updated 🌿', 'success');
-  } else {
-    const created = rules.createTask({ ...fields, priority: readPriority() }, { id: newId(), now: new Date().toISOString() });
-    if (!created.ok) { notify('Could not add task: ' + created.issues[0], 'error'); return; }
-    state = structuredClone(state);
-    state.tasks.unshift(created.task);
-    notify('A new adventure added 🌱', 'success');
+    if (commitState(result.state, { message: 'Task updated 🌿', tone: 'success' })) closeDialog();
+    return;
   }
-  persistAndRender();
-  closeDialog();
+
+  const created = rules.createTask({ ...fields, priority: readPriority() }, { id: newId(), now: new Date().toISOString() });
+  if (!created.ok) { notify('Could not add task: ' + created.issues[0], 'error'); return; }
+  const next = structuredClone(state);
+  next.tasks.unshift(created.task);
+  if (commitState(next, { message: 'A new adventure added 🌱', tone: 'success' })) closeDialog();
 });
 
 $('task-list').addEventListener('click', (e) => {
@@ -244,32 +369,41 @@ $('task-list').addEventListener('click', (e) => {
     if (!task.done) {
       const result = rules.completeTask(state, task.id, { entryId: newId(), now: new Date().toISOString() });
       if (!result.ok) { notify('Could not complete task.', 'error'); return; }
-      state = result.state;
       if (result.entry) {
         const reward = result.entry.reward;
         const label = rules.rewardFor(result.entry.prioritySnapshot).label;
-        notify(`+${reward.xp} XP · +${reward.coins} coins · +${reward.amount} ${label} ✨`, 'success');
+        commitState(result.state, {
+          message: `+${reward.xp} XP · +${reward.coins} coins · +${reward.amount} ${label} ✨`,
+          tone: 'success'
+        });
       } else {
-        notify('Completed again — reward already earned 🌿', 'info');
+        commitState(result.state, { message: 'Completed again — reward already earned 🌿', tone: 'info' });
       }
     } else {
       const result = rules.reopenTask(state, task.id);
       if (!result.ok) { notify('Could not reopen task.', 'error'); return; }
-      state = result.state;
-      notify('Task moved back to your list. Rewards stay earned.', 'info');
+      commitState(result.state, {
+        message: 'Task moved back to your list. Rewards stay earned.',
+        tone: 'info'
+      });
     }
-  } else if (action === 'edit') {
+    return;
+  }
+
+  if (action === 'edit') {
     openDialog(task);
     return;
-  } else if (action === 'delete') {
+  }
+
+  if (action === 'delete') {
     if (!confirm(`Delete “${task.title}”?`)) return;
     const result = rules.deleteTask(state, task.id);
     if (!result.ok) { notify('Could not delete task.', 'error'); return; }
-    state = result.state;
-    notify('Task removed. Earned rewards stay with you.', 'info');
+    commitState(result.state, {
+      message: 'Task removed. Earned rewards stay with you.',
+      tone: 'info'
+    });
   }
-
-  persistAndRender();
 });
 
 document.querySelectorAll('.filter').forEach((btn) => btn.addEventListener('click', () => {
@@ -316,15 +450,16 @@ $('import-file').addEventListener('change', (e) => {
     if (!confirm(message)) return;
     const backup = storage.backupState(store, state, { now: new Date().toISOString() });
     if (!backup.ok) { notify('Import cancelled: backup failed.', 'error'); return; }
-    state = result.state;
-    persistAndRender();
-    notify('Backup imported 🌿', 'success');
+    commitState(result.state, { message: 'Backup imported 🌿', tone: 'success' });
   };
   reader.onerror = () => notify('Could not read that file.', 'error');
   reader.readAsText(file);
 });
 
 render();
-window.CQ.world?.mount(document.getElementById('world-canvas'), {
-  infoPanel: document.getElementById('world-info-panel')
+const initialXp = rules.computeTotals(state).xp;
+worldHandle = world.mount(document.getElementById('world-canvas'), {
+  infoPanel: document.getElementById('world-info-panel'),
+  xp: initialXp
 });
+updateWorldGrowth(syntheticGrowthResult(initialXp));

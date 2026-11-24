@@ -387,6 +387,52 @@ body {
   margin: 7px 0 15px;
 }
 
+.world-growth {
+  margin: -6px 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8f5ec;
+  font-size: 10px;
+}
+
+.world-growth[hidden],.world-growth-event[hidden] {
+  display: none;
+}
+
+.world-growth-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.world-growth-heading b {
+  font: 600 12px Fraunces,serif;
+  color: #6f8a5b;
+}
+
+.world-growth-heading span {
+  color: #a67b37;
+}
+
+.world-growth-next {
+  margin: 4px 0 0;
+  color: #698267;
+}
+
+.world-growth-features {
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.world-growth-event {
+  margin-top: 5px;
+  color: #a67b37;
+  font-weight: 700;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(3,1fr);

@@ -35,7 +35,7 @@
         <div class="world-footer"><span>🏡 Home plot</span><span>🔒 New biomes unlock as you grow</span></div>
       </article>
       <aside class="side-column">
-        <article class="progress-card"><div class="card-title"><span>YOUR PROGRESS</span><span>✨</span></div><div class="level-line"><b id="level-name">Seedling</b><span id="level-progress-text">0 / 100 XP</span></div><div class="progress-track"><div id="xp-bar" class="progress-fill"></div></div><p class="muted" id="next-level">100 XP to Sprout</p><div class="stat-grid"><div><b id="wood">0</b><small>🪵 Wood</small></div><div><b id="stone">0</b><small>🪨 Stone</small></div><div><b id="iron">0</b><small>⛏️ Iron</small></div></div></article>
+        <article class="progress-card"><div class="card-title"><span>YOUR PROGRESS</span><span>✨</span></div><div class="level-line"><b id="level-name">Seedling</b><span id="level-progress-text">0 / 100 XP</span></div><div class="progress-track"><div id="xp-bar" class="progress-fill"></div></div><p class="muted" id="next-level">100 XP to Sprout</p><div id="world-growth" class="world-growth" hidden><div class="world-growth-heading"><b id="world-stage-name">Starting Meadow</b><span id="world-stage-xp">0 XP</span></div><p id="world-next-unlock" class="world-growth-next">Next world feature at 100 XP: wildflowers appear</p><div id="world-growth-features" class="world-growth-features">The meadow is resting.</div><div id="world-growth-event" class="world-growth-event" hidden></div></div><p id="world-progress-status" class="sr-only" role="status" aria-live="polite"></p><div class="stat-grid"><div><b id="wood">0</b><small>🪵 Wood</small></div><div><b id="stone">0</b><small>🪨 Stone</small></div><div><b id="iron">0</b><small>⛏️ Iron</small></div></div></article>
         <article class="gentle-card"><div class="gentle-icon">🫶</div><div><b>Small steps count.</b><p>Rest is part of growing, too. There's no penalty for taking a slower day.</p></div></article>
       </aside>
     </section>
@@ -56,12 +56,14 @@
 <script src="src/rules.js"></script>
 <script src="src/storage.js"></script>
 <script src="src/transfer.js"></script>
+<script src="src/progressionConfig.js"></script>
 <script src="src/world/coords.js"></script>
 <script src="src/world/tiles.js"></script>
 <script src="src/world/map.js"></script>
 <script src="src/world/mapValidation.js"></script>
 <script src="src/world/grid.js"></script>
 <script src="src/world/scene.js"></script>
+<script src="src/world/progression.js"></script>
 <script src="src/world/camera.js"></script>
 <script src="src/world/hitTest.js"></script>
 <script src="src/world/renderer.js"></script>
