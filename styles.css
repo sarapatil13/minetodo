@@ -374,6 +374,11 @@ body.is-cozyquest .points-chip b {
   padding: 19px 20px;
 }
 
+.calendar-widget {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
 .welcome-card {
   background: linear-gradient(135deg,#fffdf8 0%,#f1f6ec 100%);
 }
@@ -463,8 +468,9 @@ body.is-cozyquest .points-chip b {
 }
 
 .calendar-nav-btn {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
+  flex: none;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -481,7 +487,7 @@ body.is-cozyquest .points-chip b {
 .calendar-weekdays,.calendar-week {
   display: grid;
   grid-template-columns: repeat(7,minmax(0,1fr));
-  gap: 3px;
+  gap: 2px;
 }
 
 .calendar-weekdays {
@@ -500,8 +506,9 @@ body.is-cozyquest .points-chip b {
 
 .calendar-day {
   position: relative;
-  min-height: 27px;
-  aspect-ratio: 1;
+  min-width: 32px;
+  min-height: 32px;
+  aspect-ratio: auto;
   display: grid;
   place-items: center;
   padding: 0;
@@ -571,6 +578,7 @@ body.is-cozyquest .points-chip b {
 
 .calendar-quick-add {
   width: 100%;
+  min-height: 32px;
   margin-top: 8px;
   padding: 7px;
   border: 1px dashed #cfdcc7;
@@ -617,6 +625,7 @@ body.is-cozyquest .points-chip b {
 .focus-presets {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 12px;
 }
@@ -1092,7 +1101,10 @@ body.is-cozyquest .points-chip b {
 .world-reset {
   border: 0;
   background: transparent;
-  padding: 0;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 2px;
   color: inherit;
   font: inherit;
   text-decoration: underline;
@@ -1188,7 +1200,8 @@ body.is-cozyquest .points-chip b {
   color: var(--green-dark);
   font: inherit;
   font-weight: 600;
-  padding: 3px 7px;
+  min-height: 30px;
+  padding: 5px 8px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1427,6 +1440,8 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   margin: 17px 0 10px;
 }
 
@@ -1438,6 +1453,7 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 .filter {
   border: 0;
   background: transparent;
+  min-height: 32px;
   padding: 7px 12px;
   border-radius: 8px;
   color: #89958a;
@@ -1486,8 +1502,8 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 }
 
 .task-check {
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   border: 1.5px solid #c6d2c1;
   border-radius: 7px;
   background: #fff;
@@ -1606,6 +1622,8 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 .task-actions button {
   border: 0;
   background: transparent;
+  min-width: 32px;
+  min-height: 32px;
   color: #9ba49a;
   cursor: pointer;
   font-size: 14px;
@@ -1900,7 +1918,7 @@ legend {
   transform: translate(-50%,0);
 }
 
-@media(max-width:980px) {
+@media(max-width:1180px) {
   .app-shell {
     padding: 0 16px;
     grid-template-columns: 1fr;
@@ -1946,6 +1964,12 @@ legend {
     min-height: 70px;
     padding: 12px 0;
   }
+  .topbar-actions {
+    flex: none;
+  }
+  .page-heading {
+    min-width: 0;
+  }
   .page-heading h1 {
     font-size: 22px;
   }
@@ -1961,9 +1985,7 @@ legend {
     font-size: 29px;
   }
   .cozy-hero::after {
-    right: -12px;
-    bottom: -42px;
-    font-size: 96px;
+    display: none;
   }
   .cozy-return {
     align-self: flex-start;
@@ -1978,7 +2000,7 @@ legend {
     grid-template-columns: 1fr 1fr;
   }
   .calendar-day {
-    min-height: 30px;
+    min-height: 34px;
   }
   .focus-controls {
     grid-template-columns: repeat(2,minmax(0,1fr));
@@ -2132,6 +2154,46 @@ legend {
   }
   .cozy-stat b {
     font-size: 18px;
+  }
+  .decor-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .decor-block {
+    min-height: 0;
+  }
+  .decor-item {
+    flex-wrap: wrap;
+  }
+  .decor-item button {
+    min-height: 36px;
+    padding: 7px 10px;
+    font-size: 10px;
+  }
+  .decor-actions button {
+    min-width: 44px;
+  }
+  .biome-row select {
+    width: 100%;
+    min-width: 0;
+  }
+  .placement-row input {
+    flex: 1 1 52px;
+    width: auto;
+  }
+  .world-footer {
+    justify-content: center;
+    text-align: center;
+  }
+  .world-reset {
+    min-height: 36px;
+    padding: 8px 4px;
+  }
+  .filter,.calendar-quick-add,.calendar-nav-btn {
+    min-height: 36px;
+  }
+  .calendar-nav-btn {
+    width: 36px;
   }
   .welcome-grid,.widget-stack {
     grid-template-columns: 1fr;

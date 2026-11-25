@@ -122,5 +122,5 @@ test('calendar and focus widgets have styled, responsive states', () => {
   ]) {
     assert.ok(css.includes(rule), rule + ' has no style rule');
   }
-  assert.match(css, /@media\(max-width:980px\)[\s\S]*?\.focus-controls \{[\s\S]*?grid-template-columns: repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(css, /@media\(max-width:1180px\)[\s\S]*?\.focus-controls \{[\s\S]*?grid-template-columns: repeat\(2,minmax\(0,1fr\)\)/);
 });

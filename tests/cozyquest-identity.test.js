@@ -111,7 +111,7 @@ test('CozyQuest has an immersive visual identity with responsive hero and progre
   assert.match(css, /\.cozy-progress-panel \.cozy-progress-track \{[\s\S]*?height: 10px/);
   assert.match(css, /\.cozyquest-view \.world-scene \{[\s\S]*?height: clamp/);
 
-  const tablet = css.slice(css.indexOf('@media(max-width:980px)'), css.indexOf('@media(max-width:440px)'));
+  const tablet = css.slice(css.indexOf('@media(max-width:1180px)'), css.indexOf('@media(max-width:440px)'));
   assert.match(tablet, /\.cozy-hero \{[\s\S]*?flex-direction: column/);
   assert.match(tablet, /\.cozy-progress-panel \{[\s\S]*?grid-template-columns: 1fr 1fr/);
   assert.match(tablet, /\.cozyquest-view \.world-scene \{[\s\S]*?height: 280px/);

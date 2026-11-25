@@ -1,6 +1,6 @@
 # CozyQuest — Product Requirements Document
 
-**Status:** Living PRD — MVP definition plus the implemented Phase 2.8.5 CozyQuest integration slice
+**Status:** Living PRD — MVP definition plus the implemented Phase 2.8.6 responsive polish slice
 **Product direction:** Cozy, game-inspired productivity and self-care companion  
 **Initial platform:** Responsive web app, local-first  
 
@@ -36,6 +36,7 @@ This is a product hypothesis. Module 1's design-thinking approach calls for test
 | Focus timer | Pomodoro and custom (delivered in Phase 2.8.3) |
 | Flower appreciation | Decorative, deterministic flowers beside completed task titles (delivered in Phase 2.8.4) |
 | CozyQuest identity | Immersive in-app world view with shared progression and a clear return to Minetodo (delivered in Phase 2.8.5) |
+| Responsive layout | Polished desktop-to-narrow-mobile behavior for Minetodo and CozyQuest (delivered in Phase 2.8.6) |
 | Rewards | XP, levels, coins, resources, achievements, items, biomes |
 | Reward rule | Every completed task earns both coins and resources; quantity/rarity varies by priority. Rewards are permanent: reopening or deleting a task never reverses them, and recompleting never pays twice. |
 | Missed tasks | Gentle handling; no loss of earned rewards |
@@ -192,4 +193,16 @@ Phase 2.8.5 gives CozyQuest a polished full-page identity inside the existing Mi
 - The CSS layer adds a nature-inspired shell atmosphere, a responsive hero and progress panel, a larger immersive canvas, reduced-motion-safe transitions, and accessible focus states across desktop, tablet and mobile.
 - Flowers remain task-presentation decoration only. They are not CozyQuest currency, collectibles, inventory, or a source of XP/coins/resources.
 
-Out of scope for this phase: a standalone CozyQuest app, backend or framework dependencies, new reward values or XP thresholds, world-state schema v3, new task fields, shop/spending economy, crafting, multiplayer, cloud sync, flower progression, and changes to recurrence.
+Out of scope for that phase: a standalone CozyQuest app, backend or framework dependencies, new reward values or XP thresholds, world-state schema v3, new task fields, shop/spending economy, crafting, multiplayer, cloud sync, flower progression, and changes to recurrence.
+
+## 16. Phase 2.8.6 responsive polish (implemented)
+
+Phase 2.8.6 refines responsive behavior across large desktop, laptop, landscape/portrait tablet, mobile, and narrow mobile widths. It preserves the task schema, reward matrix, permanent ledger, calendar semantics, focus timer calculations, world-state v2, biome/decoration mechanics, reset, export/import, hash router, mount/teardown lifecycle, and `file://` compatibility.
+
+- The tablet layout breakpoint begins at 1180px so laptop and tablet-landscape widths no longer clip the calendar grid, focus duration input, or long task titles inside a three-column welcome grid.
+- Task filters, the task toolbar, and focus presets wrap instead of forcing content into shrinking columns. Calendar navigation, day cells, quick add, completion checks, task actions, and world controls have comfortable touch targets.
+- At 440px and below, the CozyQuest decoration catalog, ownership, and placed-item lists stack into one readable column. Biome and placement inputs use the available width, and world footer actions remain reachable.
+- The decorative CozyQuest hero flourish is hidden in the tablet/mobile layout where it previously expanded the hero's scroll width. The existing reduced-motion and visible-focus safeguards remain intact.
+- No new script, module, framework, build step, backend, state store, reward calculation, or animation system was introduced. The established Minetodo and CozyQuest visual identities are unchanged.
+
+Out of scope for this phase: a product redesign, new product features, task/reward changes, calendar or timer behavior changes, world-engine changes, persistence changes, and Phase 2.8.7 work.

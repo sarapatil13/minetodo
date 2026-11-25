@@ -99,12 +99,12 @@ test('sidebar styling supports focus, hover and tablet/mobile layouts', () => {
     '.nav-item:hover {',
     '.nav-item.nav-cozyquest {',
     '.view-cozyquest {',
-    '@media(max-width:980px) {',
+    '@media(max-width:1180px) {',
     '@media(max-width:440px) {'
   ]) {
     assert.ok(css.includes(rule), rule + ' has no style rule');
   }
-  const tablet = css.slice(css.indexOf('@media(max-width:980px)'), css.indexOf('@media(max-width:440px)'));
+  const tablet = css.slice(css.indexOf('@media(max-width:1180px)'), css.indexOf('@media(max-width:440px)'));
   assert.match(tablet, /\.sidebar-nav \{[\s\S]*?overflow-x: auto/);
   const mobile = css.slice(css.indexOf('@media(max-width:440px)'));
   assert.match(mobile, /\.sidebar-nav \{[\s\S]*?grid-template-columns: repeat\(3,minmax\(0,1fr\)\)/);
