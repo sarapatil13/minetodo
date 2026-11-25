@@ -21,6 +21,7 @@ Progress is saved in this browser using `localStorage`. Task state and user-owne
 - Permanent reward ledger: completing a task earns a reward once, forever.
 - XP levels and a basic resource inventory.
 - A world that grows from earned XP, with four stages and two intermediate milestones.
+- A distinct CozyQuest view with a nature-inspired atmosphere, an introduction, shared progression summary, and a clear return to the Minetodo Dashboard.
 - Validated, persistent user world changes layered over that derived world, plus a reset for saved changes.
 - Phase 2.7: five biomes with palette-based base maps, unlockable decorations, independently owned items, and per-biome placement.
 - Biome selector and decoration acquire/place/move/remove controls in the app shell.
@@ -397,6 +398,16 @@ Phase 2.8.4 adds a small decorative flower beside completed task titles without 
 
 The bloom class is queued in a transient in-memory set only when a task actually moves from incomplete to complete, then consumed by the next render. Reloads, unrelated full renders, calendar selection, navigation, and timer ticks therefore show existing flowers without replaying the animation. The flower span is `aria-hidden`, and both a CSS media query and a JavaScript preference check disable the bloom for `prefers-reduced-motion`. Flowers carry no XP, coins, resources, inventory, collection score, or persistence.
 
+## Phase 2.8.5 CozyQuest integration and visual identity
+
+Phase 2.8.5 gives CozyQuest a distinct in-app atmosphere without introducing a second application. The shared sidebar, topbar, task engine, router, and world lifecycle remain in place; a single `body.is-cozyquest` state restyles the shell while Minetodo keeps its mint-green productivity identity.
+
+The existing world template now opens with a CozyQuest heading, a short introduction explaining that Minetodo tasks grow the world, and a prominent **Back to Minetodo Dashboard** button. That button uses the existing delegated document listener and hash router, so it cannot accumulate duplicate bindings across repeated mounts. A progression summary shows XP, level, world stage, stage progress, and the next unlock beside the canvas.
+
+The summary reads the same derived values as the dashboard: `renderStats()` supplies XP and level from `rules.computeTotals()`, while `updateWorldGrowth()` supplies stage and percent from the existing `worldProgression.worldProgress()` result. Entering CozyQuest composes the live world with `currentXp()`, so tasks completed in Minetodo are reflected immediately. No reward, ledger, task, or world-state calculation was duplicated or changed. Flowers remain completed-task decoration and never appear as CozyQuest currency or collectibles.
+
+The visual layer uses CSS gradients, broader world canvas sizing, a responsive hero/progress layout, reduced-motion-safe transitions, and accessible focus styling. Desktop, tablet and mobile layouts keep the canvas, biome selector, decoration catalog, placement controls, reset, and backup/export/import behavior intact.
+
 ## Tests
 
 Run the complete automated suite from this directory:
@@ -405,7 +416,7 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, rollback-safe progression commits, versioned world-state validation and quarantine, pure world composition, two-domain commit and recovery handling, world-aware backup envelopes, and classic script order/reset control. Phase 2.7 also covers typed unlock derivation, catalog/biome determinism, v1→v2 migration fidelity, ownership/placement invariants, biome isolation, and the new app-shell controls. Phase 2.8.3 also covers local-date month generation, leap years and month boundaries, date/task mapping, the full timer lifecycle, custom durations, delayed-tick drift, completion transitions, and the widget DOM/CSS contracts. Phase 2.8.4 also covers deterministic variety assignment and distribution, invalid IDs, input immutability, bloom queue consumption, reduced-motion guards, decorative accessibility, and the no-reward/no-storage contracts.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, rollback-safe progression commits, versioned world-state validation and quarantine, pure world composition, two-domain commit and recovery handling, world-aware backup envelopes, and classic script order/reset control. Phase 2.7 also covers typed unlock derivation, catalog/biome determinism, v1→v2 migration fidelity, ownership/placement invariants, biome isolation, and the new app-shell controls. Phase 2.8.3 also covers local-date month generation, leap years and month boundaries, date/task mapping, the full timer lifecycle, custom durations, delayed-tick drift, completion transitions, and the widget DOM/CSS contracts. Phase 2.8.4 also covers deterministic variety assignment and distribution, invalid IDs, input immutability, bloom queue consumption, reduced-motion guards, decorative accessibility, and the no-reward/no-storage contracts. Phase 2.8.5 also covers the CozyQuest hero/return/progression contracts, shared body-class transitions, delegated routing, preserved world control IDs, responsive visual identity, and the single derived XP/world-progression calculation paths.
 
 ## MVP boundary
 
@@ -415,7 +426,7 @@ This slice intentionally does not include login, cloud sync, friend visits, shar
 
 1. Validate the task/reward loop with real users and improve confusing interactions.
 2. Add an in-app migration report and an undo/history view.
-3. Add self-care flows around the now-implemented calendar, focus timer, and flower appreciation.
+3. Add self-care flows around the now-implemented calendar, focus timer, flower appreciation, and CozyQuest identity.
 4. Extend the grown world with movement, a full in-app map editor (beyond the current decoration controls), crafting, and new unlock tiers.
 5. Add accounts, privacy rules, friend permissions, and cloud sync only when sharing is ready.
 6. Add analytics and AI suggestions using consent-aware, explainable data.

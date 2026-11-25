@@ -215,7 +215,12 @@ function renderStats() {
   $('stone').textContent = totals.resources.stone;
   $('iron').textContent = totals.resources.iron;
   $('level-name').textContent = level.name;
-  $('level-label').textContent = `Level ${progressionConfig.LEVELS.findIndex((entry) => entry[0] === level.name) + 1} · ${level.name}`;
+  const levelNumber = progressionConfig.LEVELS.findIndex((entry) => entry[0] === level.name) + 1;
+  $('level-label').textContent = `Level ${levelNumber} · ${level.name}`;
+  if ($('cozy-xp')) {
+    $('cozy-xp').textContent = totals.xp;
+    $('cozy-level').textContent = `Level ${levelNumber} · ${level.name}`;
+  }
   if (level.next) {
     const span = level.next[1] - level.base;
     const earned = totals.xp - level.base;
@@ -274,28 +279,48 @@ function withGrowthFeedback(message, result) {
   return event ? `${message} · ${event}` : message;
 }
 
-function updateWorldGrowth(result) {
-  if (!$('world-growth')) return;
-  const progress = result.progress;
-  const row = $('world-growth');
-  row.hidden = progress.xp === 0;
-
-  $('world-stage-name').textContent = progress.stage.name;
-  $('world-stage-xp').textContent = `${progress.xp} XP`;
-  $('world-next-unlock').textContent = progress.nextUnlock
+function nextUnlockText(progress) {
+  return progress.nextUnlock
     ? `Next world feature at ${progress.nextUnlock.minXp} XP: ${progress.nextUnlock.label}`
     : 'Every world feature is blooming.';
-  $('world-growth-features').textContent = progress.unlockedFeatures.length
-    ? Array.from(progress.unlockedFeatures).map(featureLabel).join(' · ')
-    : 'The meadow is resting.';
+}
 
-  const event = growthEvent(result);
-  const eventEl = $('world-growth-event');
-  eventEl.textContent = event;
-  eventEl.hidden = !event;
-  $('world-progress-status').textContent = event
-    ? `${progress.stage.name}. ${event}. ${$('world-next-unlock').textContent}.`
-    : `${progress.stage.name}. ${$('world-next-unlock').textContent}.`;
+function updateCozyQuestGrowth(progress) {
+  const fill = $('cozy-progress-fill');
+  if (!fill) return;
+  const percent = Math.max(0, Math.min(100, progress.percent));
+  $('cozy-stage-name').textContent = progress.stage.name;
+  $('cozy-stage-xp').textContent = `${progress.xp} XP`;
+  fill.style.width = `${percent}%`;
+  const track = $('cozy-progress-track');
+  if (track) track.setAttribute('aria-valuenow', String(Math.round(percent)));
+  $('cozy-next-unlock').textContent = nextUnlockText(progress);
+}
+
+function updateWorldGrowth(result) {
+  const progress = result.progress;
+  const nextUnlock = nextUnlockText(progress);
+  const row = $('world-growth');
+  if (row) {
+    row.hidden = progress.xp === 0;
+
+    $('world-stage-name').textContent = progress.stage.name;
+    $('world-stage-xp').textContent = `${progress.xp} XP`;
+    $('world-next-unlock').textContent = nextUnlock;
+    $('world-growth-features').textContent = progress.unlockedFeatures.length
+      ? Array.from(progress.unlockedFeatures).map(featureLabel).join(' · ')
+      : 'The meadow is resting.';
+
+    const event = growthEvent(result);
+    const eventEl = $('world-growth-event');
+    eventEl.textContent = event;
+    eventEl.hidden = !event;
+    $('world-progress-status').textContent = event
+      ? `${progress.stage.name}. ${event}. ${nextUnlock}.`
+      : `${progress.stage.name}. ${nextUnlock}.`;
+  }
+
+  updateCozyQuestGrowth(progress);
 }
 
 function syntheticGrowthResult(xp) {
@@ -470,8 +495,10 @@ function enterCozyQuest() {
   dashboardView.hidden = true;
   cozyView.hidden = false;
   activeView = 'cozyquest';
+  document.body.classList.add('is-cozyquest');
   updatePageHeading('cozyquest');
   updateNavState('cozyquest');
+  renderStats();
 
   try {
     const xp = currentXp();
@@ -491,6 +518,7 @@ function enterCozyQuest() {
     cozyView.hidden = true;
     dashboardView.hidden = false;
     activeView = 'dashboard';
+    document.body.classList.remove('is-cozyquest');
     updatePageHeading('dashboard');
     updateNavState('dashboard');
     if (location.hash === COZYQUEST_HASH) replaceHash(DASHBOARD_HASH);
@@ -508,6 +536,7 @@ function leaveCozyQuest(focusTarget = null) {
   }
   if (dashboardView) dashboardView.hidden = false;
   activeView = 'dashboard';
+  document.body.classList.remove('is-cozyquest');
   updatePageHeading('dashboard');
   const navKey = DASHBOARD_FOCUS_TARGETS.includes(focusTarget) ? focusTarget : 'dashboard';
   updateNavState(navKey);
@@ -1142,6 +1171,12 @@ document.addEventListener('click', (e) => {
   const target = e.target;
   const cozyView = $('view-cozyquest');
   if (!cozyView || cozyView.hidden || !target || typeof target.closest !== 'function') return;
+
+  const backBtn = target.closest('#back-to-dashboard');
+  if (backBtn && cozyView.contains(backBtn)) {
+    requestView('dashboard');
+    return;
+  }
 
   const decorBtn = target.closest('#world-controls-panel button[data-decor-action]');
   if (decorBtn && cozyView.contains(decorBtn) && !decorBtn.disabled) {

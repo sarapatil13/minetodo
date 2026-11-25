@@ -1,6 +1,6 @@
 # CozyQuest — Product Requirements Document
 
-**Status:** Living PRD — MVP definition plus the implemented Phase 2.8.4 flower appreciation slice
+**Status:** Living PRD — MVP definition plus the implemented Phase 2.8.5 CozyQuest integration slice
 **Product direction:** Cozy, game-inspired productivity and self-care companion  
 **Initial platform:** Responsive web app, local-first  
 
@@ -35,6 +35,7 @@ This is a product hypothesis. Module 1's design-thinking approach calls for test
 | Input | Manual and voice (voice deferred from first MVP) |
 | Focus timer | Pomodoro and custom (delivered in Phase 2.8.3) |
 | Flower appreciation | Decorative, deterministic flowers beside completed task titles (delivered in Phase 2.8.4) |
+| CozyQuest identity | Immersive in-app world view with shared progression and a clear return to Minetodo (delivered in Phase 2.8.5) |
 | Rewards | XP, levels, coins, resources, achievements, items, biomes |
 | Reward rule | Every completed task earns both coins and resources; quantity/rarity varies by priority. Rewards are permanent: reopening or deleting a task never reverses them, and recompleting never pays twice. |
 | Missed tasks | Gentle handling; no loss of earned rewards |
@@ -178,4 +179,17 @@ Phase 2.8.4 adds gentle appreciation to task completion while preserving the tas
 - Reduced motion is respected both by a CSS media query and by a JavaScript preference check that omits the bloom class entirely.
 - Flowers are appreciation, not currency. They never change XP, coins, resources, reward claims, occurrence inference, inventory, collection pressure, or competitive mechanics.
 
-Out of scope for this phase: recurrence, notification sounds, focus-session history, stored flower state, flower inventory, collection scoring, competitive mechanics, and any change to task rewards or world progression.
+Out of scope for that phase: recurrence, notification sounds, focus-session history, stored flower state, flower inventory, collection scoring, competitive mechanics, and any change to task rewards or world progression.
+
+## 15. Phase 2.8.5 CozyQuest integration and visual identity (implemented)
+
+Phase 2.8.5 gives CozyQuest a polished full-page identity inside the existing Minetodo shell. It preserves the task schema, reward matrix, permanent ledger, world-state v2, export/import, hash router, mount/teardown lifecycle, and all Phase 2.7 biome/decoration controls.
+
+- The shared shell switches to a single `body.is-cozyquest` state on entry and removes it on every exit, failed entry, reload-to-dashboard, or return control press. Minetodo's mint-green productivity identity remains the default state.
+- The existing world template now contains a CozyQuest heading, an introduction connecting real task completion to world growth, and an accessible return button labelled **Back to Minetodo Dashboard**. The button is handled by the existing delegated document click listener and router, so cloning the template never duplicates bindings.
+- A progression summary shows XP, level, world stage, stage progress, and next unlock. XP/level are written by `renderStats()` from `rules.computeTotals()`, and stage/percent are written by `updateWorldGrowth()` from the existing `worldProgression.worldProgress()` result. There is still only one derived XP path and one derived world-progression path.
+- Entering CozyQuest composes the live world from `currentXp()`, so XP earned in Minetodo is reflected without a second reward calculation. Existing world controls, ownership, placement, movement, removal, biome switching, reset, and backup/import behavior are unchanged.
+- The CSS layer adds a nature-inspired shell atmosphere, a responsive hero and progress panel, a larger immersive canvas, reduced-motion-safe transitions, and accessible focus states across desktop, tablet and mobile.
+- Flowers remain task-presentation decoration only. They are not CozyQuest currency, collectibles, inventory, or a source of XP/coins/resources.
+
+Out of scope for this phase: a standalone CozyQuest app, backend or framework dependencies, new reward values or XP thresholds, world-state schema v3, new task fields, shop/spending economy, crafting, multiplayer, cloud sync, flower progression, and changes to recurrence.

@@ -109,6 +109,23 @@
 
 <template id="cozyquest-world-template">
   <section class="cozyquest-view">
+    <header class="cozy-hero">
+      <div class="cozy-hero-copy">
+        <p class="eyebrow">COZYQUEST · A WORLD THAT GROWS WITH YOU</p>
+        <h2 id="cozy-hero-title">Welcome home to your meadow</h2>
+        <p id="cozy-hero-description">Every task you finish in Minetodo brings new life to this little world. Wander through the seasons, place what you've earned, and see how far you've grown.</p>
+      </div>
+      <button type="button" class="cozy-return" id="back-to-dashboard" aria-label="Return to Minetodo Dashboard"><span class="cozy-return-arrow" aria-hidden="true">←</span><span class="cozy-return-label"><small>Back to</small><b>Minetodo Dashboard</b></span></button>
+    </header>
+    <section class="cozy-progress-panel" aria-label="CozyQuest progression">
+      <div class="cozy-stat"><span class="eyebrow">EARNED XP</span><b id="cozy-xp">0</b></div>
+      <div class="cozy-stat"><span class="eyebrow">YOUR LEVEL</span><b id="cozy-level">Level 1 · Seedling</b></div>
+      <div class="cozy-stage-block">
+        <div class="cozy-stage-head"><b id="cozy-stage-name">Starting Meadow</b><span id="cozy-stage-xp">0 XP</span></div>
+        <div id="cozy-progress-track" class="progress-track cozy-progress-track" role="progressbar" aria-label="World stage progression" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="cozy-progress-fill" class="progress-fill"></div></div>
+        <p id="cozy-next-unlock" class="muted">Next world feature at 100 XP: wildflowers appear</p>
+      </div>
+    </section>
     <article class="world-card">
       <div class="world-heading"><div><span class="eyebrow">COZYQUEST · YOUR HOME BIOME</span><h2 id="world-name">Meadow Haven</h2></div><span class="weather">☀️ <small>Sunny day</small></span></div>
       <div class="world-scene">
