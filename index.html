@@ -52,15 +52,37 @@
             </div>
             <div class="welcome-stat"><b id="done-count">0</b><span>small steps completed</span></div>
           </article>
-          <article class="widget-slot card" id="calendar-widget" tabindex="-1">
+          <article class="widget-slot card calendar-widget" id="calendar-widget" tabindex="-1">
             <div class="card-title"><span>CALENDAR</span><span>🗓️</span></div>
             <h3>Task dates at a glance</h3>
-            <p class="muted">Your existing due dates will appear here in the next milestone. No scheduling yet.</p>
+            <div class="calendar-nav">
+              <button type="button" class="calendar-nav-btn" id="calendar-prev" aria-label="Previous month">‹</button>
+              <b id="calendar-month-label">Loading…</b>
+              <button type="button" class="calendar-nav-btn" id="calendar-next" aria-label="Next month">›</button>
+            </div>
+            <div class="calendar-weekdays" aria-hidden="true"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
+            <div id="calendar-grid" class="calendar-grid" role="grid" aria-label="Task calendar"></div>
+            <div class="calendar-footer"><span id="calendar-selection" aria-live="polite">Showing all tasks</span><button type="button" class="calendar-link" id="calendar-clear" hidden>Clear date</button></div>
+            <button type="button" class="calendar-quick-add" id="calendar-add">＋ Add a task for this date</button>
           </article>
-          <article class="widget-slot card" id="focus-widget" tabindex="-1">
+          <article class="widget-slot card focus-widget" id="focus-widget" tabindex="-1" data-state="idle">
             <div class="card-title"><span>FOCUS TIMER</span><span>⏱️</span></div>
             <h3>A gentle focus session</h3>
-            <p class="muted">Pomodoro and custom timers are coming next. Focus stays separate from rewards.</p>
+            <div class="focus-clock" id="focus-display" role="timer" aria-live="off">25:00</div>
+            <p class="focus-status" id="focus-status" aria-live="polite">Ready · Pomodoro</p>
+            <div class="focus-progress-track"><div class="focus-progress-fill" id="focus-progress"></div></div>
+            <div class="focus-presets">
+              <button type="button" class="secondary-btn" id="focus-pomodoro">Pomodoro 25m</button>
+              <label>Custom <input id="focus-minutes" type="number" min="1" max="1440" step="1" value="25" aria-label="Custom focus minutes"></label>
+              <button type="button" class="secondary-btn" id="focus-custom">Set</button>
+            </div>
+            <div class="focus-controls">
+              <button type="button" class="primary-btn" id="focus-start">Start</button>
+              <button type="button" class="secondary-btn" id="focus-pause" disabled>Pause</button>
+              <button type="button" class="secondary-btn" id="focus-resume" disabled>Resume</button>
+              <button type="button" class="secondary-btn" id="focus-reset">Reset</button>
+            </div>
+            <p class="focus-feedback" id="focus-feedback" hidden aria-live="polite">Session complete — take a gentle breath 🌿</p>
           </article>
         </div>
 
@@ -149,5 +171,7 @@
 <script src="src/worldState.js"></script>
 <script src="src/world/decorations.js"></script>
 <script src="src/stateCommit.js"></script>
+<script src="src/calendar.js"></script>
+<script src="src/focusTimer.js"></script>
 <script src="app.js"></script>
 </body></html>

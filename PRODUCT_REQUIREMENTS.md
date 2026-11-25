@@ -1,6 +1,6 @@
 # CozyQuest — Product Requirements Document
 
-**Status:** Living PRD — MVP definition plus the implemented Phase 2.7 world-content slice  
+**Status:** Living PRD — MVP definition plus the implemented Phase 2.8.3 calendar/focus slice
 **Product direction:** Cozy, game-inspired productivity and self-care companion  
 **Initial platform:** Responsive web app, local-first  
 
@@ -33,7 +33,7 @@ This is a product hypothesis. Module 1's design-thinking approach calls for test
 | Task types | Quick, daily, recurring, projects, calendar, self-care |
 | Priority | Simple levels plus urgent/important distinction |
 | Input | Manual and voice (voice deferred from first MVP) |
-| Focus timer | Pomodoro and custom (later phase) |
+| Focus timer | Pomodoro and custom (delivered in Phase 2.8.3) |
 | Rewards | XP, levels, coins, resources, achievements, items, biomes |
 | Reward rule | Every completed task earns both coins and resources; quantity/rarity varies by priority. Rewards are permanent: reopening or deleting a task never reverses them, and recompleting never pays twice. |
 | Missed tasks | Gentle handling; no loss of earned rewards |
@@ -154,3 +154,15 @@ Out of scope for this phase: shop, crafting, spending, purchase ledger, rotation
 - Whether friends can only visit or also collaborate, and the permissions for each action.
 - Voice-input provider and privacy behaviour.
 - Whether the eventual product should remain web-first or add a native mobile client.
+
+## 13. Phase 2.8.3 calendar and focus widgets (implemented)
+
+Phase 2.8.3 adds two dashboard widgets while preserving the task schema, reward matrix, permanent ledger, world-state v2, export/import, sidebar routing, and CozyQuest mount/teardown lifecycle.
+
+- The calendar displays the current local month/year, supports previous/next navigation, highlights today, marks dates with scheduled tasks, filters the existing task list by a selected date, and offers a clear control. Selection composes with the existing All / To do / Completed filters. Undated tasks remain unscheduled, and no recurrence behaviour or new storage field is introduced.
+- Calendar quick add opens the existing task dialog with the selected local date prefilled. Validation, task creation, and rewards still have one implementation path.
+- The focus widget supports a 25-minute Pomodoro preset, custom minute durations, start, pause, resume, reset, and visible completion feedback. State is memory-only.
+- Timer calculations are timestamp-based, not interval-count based. One owned interval updates timer DOM only, is cleared on pause/reset/completion/`pagehide`, and never calls the full application render or rebuilds the task list.
+- Both pure UMD modules (`CQ.calendar`, `CQ.focusTimer`) remain classic-script and `file://` compatible; the timer clock is injectable for deterministic tests.
+
+Out of scope for this phase: flower appreciation, recurrence or recurring automation, notification sounds, focus-session history, storage of timer state, and any change to task rewards or world progression.

@@ -15,7 +15,7 @@ Progress is saved in this browser using `localStorage`. Task state and user-owne
 ## What's implemented
 
 - Add, edit, delete, complete, and reopen tasks.
-- Task types: quick task, daily habit, recurring task, project, self-care. These are labels only; recurrence and calendar behaviour are not implemented.
+- Task types: quick task, daily habit, recurring task, project, self-care. These are labels only; recurrence is not implemented. Existing due dates are shown in the calendar.
 - Priority is three dimensions: effort tier (low/medium/high), urgent flag, and important flag.
 - Derived XP, coins, and resources from a fixed 12-combination reward matrix.
 - Permanent reward ledger: completing a task earns a reward once, forever.
@@ -25,6 +25,8 @@ Progress is saved in this browser using `localStorage`. Task state and user-owne
 - Phase 2.7: five biomes with palette-based base maps, unlockable decorations, independently owned items, and per-biome placement.
 - Biome selector and decoration acquire/place/move/remove controls in the app shell.
 - All / To do / Completed filters.
+- A monthly task calendar with previous/next navigation, a local today marker, scheduled-date dots, date filtering, a clear-filter control, and quick add through the existing task dialog.
+- Pomodoro and custom in-memory focus timers with start, pause, resume, reset, and in-widget completion feedback.
 - A Canvas 2D isometric meadow renderer with terrain, trees, flowers, a pond and a starter house.
 - Canonical terrain definitions, aliases, immutable grid queries, and validated terrain updates.
 - Pointer-friendly camera panning and pointer-centred wheel/pinch zoom over the meadow.
@@ -164,6 +166,8 @@ src/world/index.js           public CQ.world.mount(...) adapter
 src/worldState.js            v1/v2 world state validation, migration, storage, quarantine and backups
 src/world/decorations.js     ownership, placement, movement, removal and biome switching layer
 src/stateCommit.js           validated two-domain commits, rollback and recovery marker
+src/calendar.js         pure local-date month generation and task/date mapping
+src/focusTimer.js       pure time-based Pomodoro/custom timer state
 tests/*.test.js         dependency-free node:test suites
 ```
 
@@ -375,6 +379,14 @@ For v2, `decorations.activeModifications(state, { taskState, enforceUnlocks: fal
 
 The app shell now exposes a biome selector, catalog/owned/placed lists, placement cell inputs, acquire/place/move/remove buttons, and the existing reset control. There is no shop, crafting, spending, purchase ledger, rotation, multiplayer, cloud sync, or full map editor.
 
+## Phase 2.8.3 calendar and focus widgets
+
+Phase 2.8.3 makes both dashboard widgets functional without changing the task engine, reward matrix, permanent ledger, world state v2, export/import, or CozyQuest lifecycle.
+
+`CQ.calendar` is a pure UMD module. `buildMonth()` produces Sunday-first local calendar cells for any month, with leap-year-safe day counts, neighbouring-month padding, today markers, and scheduled-task counts derived from the existing `task.date` strings. Undated tasks are never mapped to a calendar day. Selecting a date combines with the existing All / To do / Completed filter; clearing the date restores the full list. The calendar quick-add control opens the existing task dialog with the selected local date prefilled, and all validation/creation still goes through the single task-form path.
+
+`CQ.focusTimer` is a pure UMD module with an injectable clock. Its state is only in memory. Remaining time is computed from a target timestamp rather than fixed interval decrements, so delayed or skipped ticks do not cause drift. The app owns one 250 ms interval, clears it on pause, reset, completion, and `pagehide`, and only writes timer DOM on each tick; the full application render and task list are untouched. Completion feedback stays inside the focus widget and is separate from XP, points, and rewards.
+
 ## Tests
 
 Run the complete automated suite from this directory:
@@ -383,17 +395,17 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, rollback-safe progression commits, versioned world-state validation and quarantine, pure world composition, two-domain commit and recovery handling, world-aware backup envelopes, and classic script order/reset control. Phase 2.7 also covers typed unlock derivation, catalog/biome determinism, v1→v2 migration fidelity, ownership/placement invariants, biome isolation, and the new app-shell controls.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, rollback-safe progression commits, versioned world-state validation and quarantine, pure world composition, two-domain commit and recovery handling, world-aware backup envelopes, and classic script order/reset control. Phase 2.7 also covers typed unlock derivation, catalog/biome determinism, v1→v2 migration fidelity, ownership/placement invariants, biome isolation, and the new app-shell controls. Phase 2.8.3 also covers local-date month generation, leap years and month boundaries, date/task mapping, the full timer lifecycle, custom durations, delayed-tick drift, completion transitions, and the widget DOM/CSS contracts.
 
 ## MVP boundary
 
-This slice intentionally does not include login, cloud sync, friend visits, shared worlds, AI suggestions, analytics, a focus timer, breathing exercises, journal entries, a shop/spending economy, crafting, object rotation, a full map editor, real-time 3D movement, recurrence, or calendar scheduling. Those should be added in stages after the core task loop has been tested.
+This slice intentionally does not include login, cloud sync, friend visits, shared worlds, AI suggestions, analytics, breathing exercises, journal entries, a shop/spending economy, crafting, object rotation, a full map editor, real-time 3D movement, recurrence, recurring automation, or recurring calendar entries. Those should be added in stages after the core task loop has been tested.
 
 ## Suggested next stages
 
 1. Validate the task/reward loop with real users and improve confusing interactions.
 2. Add an in-app migration report and an undo/history view.
-3. Add focus timer and self-care flows.
+3. Add self-care flows around the now-implemented calendar and focus timer.
 4. Extend the grown world with movement, a full in-app map editor (beyond the current decoration controls), crafting, and new unlock tiers.
 5. Add accounts, privacy rules, friend permissions, and cloud sync only when sharing is ready.
 6. Add analytics and AI suggestions using consent-aware, explainable data.

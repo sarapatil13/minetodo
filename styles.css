@@ -402,6 +402,240 @@ body {
   line-height: 1.55;
 }
 
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.calendar-nav b {
+  font-size: 12px;
+}
+
+.calendar-nav-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f8f1;
+  color: #557b5c;
+  font: 600 17px/1 'DM Sans';
+  cursor: pointer;
+}
+
+.calendar-nav-btn:hover {
+  background: #e7efe1;
+}
+
+.calendar-weekdays,.calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7,minmax(0,1fr));
+  gap: 3px;
+}
+
+.calendar-weekdays {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.calendar-grid {
+  display: grid;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.calendar-day {
+  position: relative;
+  min-height: 27px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #65746a;
+  font: 600 10px 'DM Sans';
+  cursor: pointer;
+}
+
+.calendar-day:hover {
+  background: #eef3e9;
+}
+
+.calendar-day.is-outside {
+  opacity: .42;
+}
+
+.calendar-day.is-blank {
+  cursor: default;
+}
+
+.calendar-day.is-today {
+  border-color: #8fae84;
+  color: #3d6249;
+}
+
+.calendar-day.is-selected {
+  background: #dfe9d5;
+  border-color: #668a63;
+  color: #36563f;
+}
+
+.calendar-task-dot {
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.calendar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 18px;
+  margin-top: 8px;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.calendar-link,.calendar-quick-add {
+  border: 0;
+  background: transparent;
+  color: #557b5c;
+  font: 700 9px 'DM Sans';
+  cursor: pointer;
+}
+
+.calendar-link {
+  padding: 0;
+  text-decoration: underline;
+}
+
+.calendar-quick-add {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+  border: 1px dashed #cfdcc7;
+  border-radius: 9px;
+  background: #fbfdf8;
+}
+
+.calendar-quick-add:hover {
+  background: #eef3e9;
+}
+
+.focus-clock {
+  margin-top: 13px;
+  text-align: center;
+  font: 600 38px/1 Fraunces,serif;
+  letter-spacing: -1px;
+  color: #466b4f;
+  font-variant-numeric: tabular-nums;
+}
+
+.focus-status {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.focus-progress-track {
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 99px;
+  background: #e8eee3;
+  overflow: hidden;
+}
+
+.focus-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg,#8fae84,#547c60);
+  transition: width .2s linear;
+}
+
+.focus-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.focus-presets button {
+  min-height: 32px;
+  padding: 7px 9px;
+  font-size: 9px;
+}
+
+.focus-presets label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.focus-presets input {
+  width: 54px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 10px;
+}
+
+.focus-controls {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.focus-controls button {
+  min-height: 34px;
+  padding: 7px 4px;
+  font-size: 9px;
+}
+
+.focus-controls button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.focus-widget[data-state="running"] .focus-clock {
+  color: #3d6249;
+}
+
+.focus-widget[data-state="paused"] .focus-clock {
+  color: #a2762f;
+}
+
+.focus-widget[data-state="complete"] .focus-clock {
+  color: #668861;
+}
+
+.focus-feedback {
+  margin: 9px 0 0;
+  padding: 7px 8px;
+  border-radius: 9px;
+  background: #e8f1e2;
+  color: #3d6249;
+  text-align: center;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0,1.55fr) minmax(260px,.85fr);
@@ -1446,6 +1680,12 @@ legend {
   }
   .welcome-grid {
     grid-template-columns: 1fr 1fr;
+  }
+  .calendar-day {
+    min-height: 30px;
+  }
+  .focus-controls {
+    grid-template-columns: repeat(2,minmax(0,1fr));
   }
   .welcome-card {
     grid-column: 1 / -1;

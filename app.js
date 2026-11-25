@@ -12,6 +12,8 @@ const contentCatalog = world.contentCatalog;
 const unlocks = world.unlocks;
 const stateCommit = window.CQ.stateCommit;
 const progressionConfig = window.CQ.progressionConfig;
+const calendar = window.CQ.calendar;
+const focusTimerModule = window.CQ.focusTimer;
 const baseWorldMap = world.createSampleMeadow();
 let worldHandle = null;
 let activeView = 'dashboard';
@@ -55,6 +57,14 @@ let activeFilter = 'all';
 let editingId = null;
 let toastTimer;
 
+const initialCalendarDate = new Date();
+let calendarMonth = calendar.monthOf(initialCalendarDate) ||
+  { year: initialCalendarDate.getFullYear(), month: initialCalendarDate.getMonth() };
+let selectedDateKey = null;
+const focusTimer = focusTimerModule.createTimer({ now: () => Date.now() });
+let focusInterval = null;
+let focusLabel = 'Pomodoro (25m)';
+
 function newId() {
   try {
     if (crypto.randomUUID) return crypto.randomUUID();
@@ -92,6 +102,105 @@ function todayProgress() {
     done: scheduled.filter((task) => task.done === true).length,
     unscheduled: state.tasks.filter((task) => !task.date).length
   };
+}
+
+function renderCalendar() {
+  const grid = $('calendar-grid');
+  if (!grid) return;
+  const month = calendar.buildMonth(calendarMonth.year, calendarMonth.month, {
+    tasks: state.tasks,
+    today: new Date(),
+    selectedDateKey
+  });
+  $('calendar-month-label').textContent = month.label;
+  grid.innerHTML = month.weeks.map((week) => (
+    '<div class="calendar-week" role="row">' + week.map((cell) => {
+      if (!cell) return '<span class="calendar-day is-blank" role="gridcell"></span>';
+      const classes = ['calendar-day'];
+      if (!cell.inMonth) classes.push('is-outside');
+      if (cell.isToday) classes.push('is-today');
+      if (cell.isSelected) classes.push('is-selected');
+      if (cell.hasTasks) classes.push('has-tasks');
+      const taskPhrase = cell.hasTasks
+        ? `, ${cell.taskCount} scheduled task${cell.taskCount === 1 ? '' : 's'}`
+        : '';
+      const label = calendar.formatLongDate(cell.key) + taskPhrase;
+      return `<button type="button" class="${classes.join(' ')}" role="gridcell" ` +
+        `data-date="${cell.key}" data-in-month="${cell.inMonth}" ` +
+        `aria-label="${escapeHtml(label)}"` +
+        `${cell.isToday ? ' aria-current="date"' : ''}` +
+        `${cell.isSelected ? ' aria-pressed="true"' : ''}>` +
+        `<span class="calendar-day-number">${cell.day}</span>` +
+        `${cell.hasTasks ? '<span class="calendar-task-dot" aria-hidden="true"></span>' : ''}` +
+        `</button>`;
+    }).join('') + '</div>'
+  )).join('');
+  $('calendar-selection').textContent = selectedDateKey
+    ? `Showing ${calendar.formatLongDate(selectedDateKey)}`
+    : 'Showing all tasks';
+  $('calendar-clear').hidden = !selectedDateKey;
+}
+
+function shiftCalendarMonth(delta) {
+  calendarMonth = calendar.shiftMonth(calendarMonth.year, calendarMonth.month, delta);
+  renderCalendar();
+}
+
+function selectCalendarDate(dateKeyValue, wasOutsideMonth) {
+  const parsed = calendar.parseLocalDateKey(dateKeyValue);
+  if (!parsed) return;
+  if (wasOutsideMonth) calendarMonth = { year: parsed.year, month: parsed.month };
+  selectedDateKey = parsed.key;
+  renderCalendar();
+  renderTasks();
+}
+
+function clearCalendarSelection() {
+  if (!selectedDateKey) return;
+  selectedDateKey = null;
+  renderCalendar();
+  renderTasks();
+}
+
+function updateFocusUI(state) {
+  const widget = $('focus-widget');
+  if (!widget) return;
+  const statusLabels = {
+    idle: 'Ready', running: 'Focusing', paused: 'Paused', complete: 'Complete'
+  };
+  widget.dataset.state = state.status;
+  $('focus-display').textContent = state.clock;
+  $('focus-status').textContent = `${statusLabels[state.status] || state.status} · ${focusLabel}`;
+  $('focus-progress').style.width = `${Math.round(state.progress * 100)}%`;
+  $('focus-feedback').hidden = state.status !== 'complete';
+  $('focus-start').disabled = state.status === 'running';
+  $('focus-pause').disabled = state.status !== 'running';
+  $('focus-resume').disabled = state.status !== 'paused';
+  $('focus-reset').disabled = state.status === 'idle' && state.remainingMs === state.durationMs;
+}
+
+function stopFocusInterval() {
+  if (focusInterval === null) return;
+  clearInterval(focusInterval);
+  focusInterval = null;
+}
+
+function syncFocusInterval(state) {
+  if (state.status !== 'running') {
+    stopFocusInterval();
+    return;
+  }
+  if (focusInterval !== null) return;
+  focusInterval = setInterval(() => {
+    const next = focusTimer.tick();
+    updateFocusUI(next);
+    if (next.completed) stopFocusInterval();
+  }, 250);
+}
+
+function applyFocusState(state) {
+  updateFocusUI(state);
+  syncFocusInterval(state);
 }
 
 function renderStats() {
@@ -566,17 +675,33 @@ function badgeClass(priority) {
   return `priority-dot ${priorityModifiers(priority)}`;
 }
 
+function visibleTasks() {
+  const dated = selectedDateKey
+    ? state.tasks.filter((t) => t.date === selectedDateKey)
+    : state.tasks;
+  return dated.filter((t) => activeFilter === 'all' || (activeFilter === 'open' ? !t.done : t.done));
+}
+
 function renderTasks() {
   const list = $('task-list');
-  const tasks = state.tasks.filter((t) => activeFilter === 'all' || (activeFilter === 'open' ? !t.done : t.done));
+  const tasks = visibleTasks();
   $('task-count').textContent = `${tasks.length} task${tasks.length === 1 ? '' : 's'}`;
 
   if (!tasks.length) {
+    const title = selectedDateKey
+      ? 'No tasks scheduled for this date.'
+      : activeFilter === 'done'
+        ? 'Your completed tasks will bloom here.'
+        : 'Your adventure starts with one small step.';
+    const copy = selectedDateKey
+      ? 'Clear the date filter to see every task.'
+      : activeFilter === 'done'
+        ? 'Complete a task to see your progress.'
+        : 'Add a task to earn your first rewards.';
     list.innerHTML =
       `<div class="empty-state"><div>` +
-      `${activeFilter === 'done' ? '🌼' : '🌷'}</div>` +
-      `<b>${activeFilter === 'done' ? 'Your completed tasks will bloom here.' : 'Your adventure starts with one small step.'}</b>` +
-      `<p>${activeFilter === 'done' ? 'Complete a task to see your progress.' : 'Add a task to earn your first rewards.'}</p>` +
+      `${activeFilter === 'done' && !selectedDateKey ? '🌼' : '🌷'}</div>` +
+      `<b>${title}</b><p>${copy}</p>` +
       `</div>`;
     return;
   }
@@ -725,6 +850,7 @@ function mutateDecoration(action, id) {
 
 function render() {
   renderStats();
+  renderCalendar();
   renderTasks();
   renderBiomeControls();
   renderDecorationControls();
@@ -760,12 +886,12 @@ function updateRewardPreview() {
   $('reward-preview').textContent = `+${reward.xp} XP · +${reward.coins} coins · ${reward.amount} ${reward.label.toLowerCase()}`;
 }
 
-function openDialog(task = null) {
+function openDialog(task = null, defaults = {}) {
   editingId = task?.id ?? null;
   $('dialog-title').textContent = task ? 'Edit task' : 'Add a task';
   $('task-title').value = task?.title || '';
   $('task-type').value = task?.type || 'Quick task';
-  $('task-date').value = task?.date || '';
+  $('task-date').value = task ? (task.date || '') : (defaults.date || '');
   setPriority(task?.priority || { tier: 'medium', urgent: false, important: false });
 
   const locked = !!(task && task.done);
@@ -874,6 +1000,43 @@ document.querySelectorAll('.filter').forEach((btn) => btn.addEventListener('clic
   activeFilter = btn.dataset.filter;
   renderTasks();
 }));
+
+$('calendar-prev').addEventListener('click', () => shiftCalendarMonth(-1));
+$('calendar-next').addEventListener('click', () => shiftCalendarMonth(1));
+$('calendar-grid').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-date]');
+  if (!btn) return;
+  selectCalendarDate(btn.dataset.date, btn.dataset.inMonth !== 'true');
+});
+$('calendar-clear').addEventListener('click', clearCalendarSelection);
+$('calendar-add').addEventListener('click', () => openDialog(null, {
+  date: selectedDateKey || calendar.localDateKey(new Date())
+}));
+
+$('focus-pomodoro').addEventListener('click', () => {
+  stopFocusInterval();
+  focusLabel = 'Pomodoro (25m)';
+  $('focus-minutes').value = '25';
+  applyFocusState(focusTimer.setDuration(focusTimerModule.POMODORO_SECONDS));
+});
+
+$('focus-custom').addEventListener('click', () => {
+  stopFocusInterval();
+  const seconds = focusTimerModule.normalizeDurationSeconds(Number($('focus-minutes').value) * 60);
+  const minutes = Math.round(seconds / 60);
+  $('focus-minutes').value = String(minutes);
+  focusLabel = `Custom (${minutes}m)`;
+  applyFocusState(focusTimer.setDuration(seconds));
+});
+
+$('focus-start').addEventListener('click', () => applyFocusState(focusTimer.start()));
+$('focus-pause').addEventListener('click', () => applyFocusState(focusTimer.pause()));
+$('focus-resume').addEventListener('click', () => applyFocusState(focusTimer.resume()));
+$('focus-reset').addEventListener('click', () => {
+  stopFocusInterval();
+  applyFocusState(focusTimer.reset());
+});
+window.addEventListener('pagehide', stopFocusInterval);
 
 $('export-json').addEventListener('click', () => {
   try {
@@ -991,6 +1154,7 @@ document.addEventListener('click', (e) => {
 });
 
 render();
+applyFocusState(focusTimer.snapshot());
 updateWorldGrowth(syntheticGrowthResult(currentXp()));
 
 // A reload always lands on the dashboard. A fresh direct #cozyquest load still
