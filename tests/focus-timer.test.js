@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const focusTimer = require('../src/focusTimer.js');
+
+const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
 function clockAt(start = 0) {
   let now = start;
@@ -126,6 +130,12 @@ test('delayed pause after the deadline becomes completion, never a paused timer'
   const restarted = timer.start();
   assert.equal(restarted.status, 'running');
   assert.equal(restarted.remainingSeconds, 30);
+});
+
+test('pagehide and pageshow restart the ticking UI without pausing the timer model', () => {
+  assert.match(app, /window\.addEventListener\('pagehide', stopFocusInterval\);/);
+  assert.match(app, /window\.addEventListener\('pageshow', \(\) => applyFocusState\(focusTimer\.tick\(\)\)\);/);
+  assert.equal(app.includes("window.addEventListener('visibilitychange'"), false);
 });
 
 test('snapshot does not mutate timer state and durations are bounded', () => {

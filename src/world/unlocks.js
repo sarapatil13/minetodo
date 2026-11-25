@@ -215,12 +215,14 @@
     const xp = settings.xp !== undefined
       ? settings.xp
       : (taskState && rules ? rules.computeTotals(taskState).xp : 0);
-    const completedTasks = settings.completedTasks !== undefined
-      ? settings.completedTasks
-      : (taskState && rules ? rules.countCompleted(taskState) : 0);
     const ledgerEntries = settings.ledgerEntries !== undefined
       ? settings.ledgerEntries
       : (taskState && Array.isArray(taskState.ledger) ? taskState.ledger.length : 0);
+    // Completion unlocks must follow the permanent reward ledger, not the live
+    // task list: reopening or deleting a completed task cannot revoke them.
+    const completedTasks = settings.completedTasks !== undefined
+      ? settings.completedTasks
+      : ledgerEntries;
     return {
       xp: isNonNegativeInteger(xp) ? xp : 0,
       completedTasks: isNonNegativeInteger(completedTasks) ? completedTasks : 0,

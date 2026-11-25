@@ -334,7 +334,7 @@ Phase 2.6 persists only user-owned world modifications. XP, level, stage, milest
 
 The active key is `cozyquest.world-state.v1` with `schemaVersion: 1`. It holds deltas only: `objects.placed`, `objects.moved`, `objects.removed`, and `terrain`. An absent key means no saved user changes. `CQ.worldState` exposes `emptyState()`, `validateState()`, `loadState()`, `saveState()`, `backupState()`, `createId()`, and `reservedIds()`.
 
-Validation is deterministic and uses canonical ordering. Structural or unsupported-schema failures are quarantined under `cozyquest.invalid-world-backup.<timestamp>`; cleaned states with invalid individual records return `ok: true` plus issues after those records are skipped. Duplicate IDs are never resolved arbitrarily, reserved base or progression IDs are rejected for user-created objects, and bad kinds, coordinates, salts, terrain, or occupied cells are reported. World quarantine never affects task state.
+Validation is deterministic and uses canonical ordering. Structural or unsupported-schema failures are quarantined under `cozyquest.invalid-world-backup.<timestamp>`; cleaned states with invalid individual records return `ok: true` plus issues after those records are skipped. Duplicate IDs are never resolved arbitrarily, reserved base or progression IDs are rejected for user-created objects, and bad kinds, coordinates, salts, terrain, or conflicting placement references are reported. Occupied-cell collisions are detected later by `CQ.world.content.compose()` and `CQ.world.decorations.place()`, which skip the conflicting placement and report an issue. World quarantine never affects task state.
 
 ### Composition and rendering
 

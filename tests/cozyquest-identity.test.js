@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
+const worldProgression = require('../src/world/progression.js');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -95,10 +97,36 @@ test('CozyQuest stage progress comes from the existing world progression result'
   assert.ok(cozyGrowth.includes("setAttribute('aria-valuenow'"));
   assert.ok(cozyGrowth.includes('nextUnlockText(progress)'));
   assert.ok(synthetic.includes('worldProgression.worldProgress(xp)'));
+  assert.ok(synthetic.includes('previousXp = xp'));
+  assert.ok(synthetic.includes('worldProgression.stageForXp(previousXp)'));
+  assert.ok(synthetic.includes('worldProgression.featureIdsForXp(previousXp)'));
 
   assert.equal((app.match(/rules\.computeTotals\(/g) || []).length, 2);
   assert.equal((app.match(/worldProgression\.worldProgress\(/g) || []).length, 1);
   assert.match(app, /const xp = currentXp\(\);[\s\S]{0,220}composeWorldScene\(xp, savedWorldState\)/);
+});
+
+test('synthetic growth announcements describe only the actual XP delta', () => {
+  const source = ['featureLabel', 'stageName', 'growthEvent', 'withGrowthFeedback', 'syntheticGrowthResult']
+    .map(functionSource).join('\n');
+  const api = vm.runInNewContext(
+    source + '\n({ growthEvent, withGrowthFeedback, syntheticGrowthResult });',
+    { worldProgression }
+  );
+
+  const sameStage = api.syntheticGrowthResult(120, 100);
+  assert.equal(sameStage.stageChanged, false);
+  assert.deepEqual(sameStage.addedFeatures, []);
+  assert.equal(api.growthEvent(sameStage), '');
+  assert.equal(api.withGrowthFeedback('+10 XP · +3 coins', sameStage), '+10 XP · +3 coins');
+
+  const crossing = api.syntheticGrowthResult(100, 50);
+  assert.equal(crossing.stageChanged, true);
+  assert.deepEqual(crossing.addedFeatures, ['meadow-wildflowers']);
+  assert.match(api.growthEvent(crossing), /Starting Meadow → Growing Meadow: wildflowers appear/);
+
+  const unchanged = api.syntheticGrowthResult(50, 50);
+  assert.equal(api.growthEvent(unchanged), '');
 });
 
 test('CozyQuest has an immersive visual identity with responsive hero and progress CSS', () => {

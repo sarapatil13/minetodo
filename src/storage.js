@@ -31,7 +31,7 @@
   }
 
   function isValidDate(value) {
-    return value === '' || (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value));
+    return rules.isValidDate(value);
   }
 
   function emptyResources() {

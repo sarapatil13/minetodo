@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const rules = require('../src/rules.js');
 const storage = require('../src/storage.js');
 const catalog = require('../src/world/contentCatalog.js');
+const biomeCatalog = require('../src/world/biomeCatalog.js');
 const unlocks = require('../src/world/unlocks.js');
 
 function taskState(xp, doneCount = 0, ledgerCount = 0) {
@@ -16,8 +17,8 @@ function taskState(xp, doneCount = 0, ledgerCount = 0) {
   for (let i = 0; i < ledgerCount; i += 1) {
     state.ledger.push({ id: 'entry-' + i, taskId: 'task-' + i,
       prioritySnapshot: { tier: 'medium', urgent: false, important: false },
-      reward: { xp: 20, coins: 6, amount: 2, label: 'wood' },
-      createdAt: '2026-11-24T00:00:00.000Z' });
+      reward: { xp: 20, coins: 6, amount: 2, resource: 'wood', label: 'Wood' },
+      claimedAt: '2026-11-24T00:00:00.000Z' });
   }
   const checked = storage.validateState(state);
   assert.equal(checked.ok, true, checked.issues.join('; '));
@@ -61,6 +62,22 @@ test('achievement unlocks are derived from reconstructible task state', () => {
   assert.equal(unlocks.isUnlocked('decor:flower:snowdrop', nineteen), false);
   const twenty = unlocks.evaluate({ xp: 0, ledgerEntries: 20 });
   assert.equal(unlocks.isUnlocked('decor:flower:snowdrop', twenty), true);
+});
+
+test('completion unlocks survive reopening or deleting completed tasks', () => {
+  const tenDone = taskState(0, 10, 10);
+  const eightDone = taskState(0, 8, 10);
+  assert.equal(rules.countCompleted(tenDone), 10);
+  assert.equal(rules.countCompleted(eightDone), 8);
+
+  const ten = unlocks.evaluate({ taskState: tenDone });
+  const eight = unlocks.evaluate({ taskState: eightDone });
+  assert.equal(unlocks.isUnlocked('decor:structure:cottage', ten), true);
+  assert.equal(unlocks.isUnlocked('decor:structure:cottage', eight), true,
+    'the permanent ledger must keep the ten-completion unlock after tasks are removed');
+  const twentyEntries = unlocks.evaluate({ taskState: taskState(0, 0, 20) });
+  assert.equal(unlocks.isUnlocked('decor:flower:snowdrop', twentyEntries), true);
+  assert.equal(biomeCatalog.evaluateUnlocks({ taskState: eightDone }).available.forest, true);
 });
 
 test('explicit grants support events and purchases without XP records', () => {

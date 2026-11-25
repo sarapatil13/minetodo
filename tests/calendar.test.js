@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const calendar = require('../src/calendar.js');
+const rules = require('../src/rules.js');
+const storage = require('../src/storage.js');
 
 test('localDateKey uses local calendar components and pads month/day', () => {
   assert.equal(calendar.localDateKey(new Date(2026, 10, 5, 23, 45, 12)), '2026-11-05');
@@ -32,6 +34,27 @@ test('parseLocalDateKey rejects malformed and impossible local dates', () => {
   assert.equal(calendar.parseLocalDateKey('2026-11-5'), null);
   assert.equal(calendar.parseLocalDateKey(''), null);
   assert.equal(calendar.parseLocalDateKey(null), null);
+});
+
+test('task writers and storage reject impossible calendar dates', () => {
+  for (const value of ['', '2024-02-29', '2000-02-29', '2026-11-05']) {
+    assert.equal(rules.isValidDate(value), true, value);
+  }
+  for (const value of ['2026-02-29', '2026-02-31', '2026-13-01', '2026-00-10',
+    '2026-04-00', '2026-11-5', '2026-1-01', 'not-a-date']) {
+    assert.equal(rules.isValidDate(value), false, value);
+  }
+
+  const raw = storage.emptyState();
+  raw.tasks.push({
+    id: 'task-bad-date', title: 'Impossible date', type: 'Quick task', date: '2026-02-31',
+    priority: { tier: 'low', urgent: false, important: false }, done: false,
+    createdAt: '2026-11-24T00:00:00.000Z', rewardClaimed: false
+  });
+  const checked = storage.validateState(raw);
+  assert.equal(checked.ok, false);
+  assert.ok(checked.issues.includes('task date invalid'));
+  assert.equal(checked.state.tasks.length, 0);
 });
 
 test('mapTasksByDate counts scheduled tasks and leaves undated tasks unscheduled', () => {

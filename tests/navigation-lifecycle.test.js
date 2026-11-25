@@ -9,6 +9,12 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 
+function functionSource(name) {
+  const match = app.match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n\\}'));
+  assert.ok(match, name + ' is missing from app.js');
+  return match[0];
+}
+
 test('sidebar exposes Dashboard, My Tasks, Calendar, Focus and CozyQuest as buttons', () => {
   const navMatch = html.match(/<nav class="sidebar-nav"[\s\S]*?<\/nav>/);
   assert.ok(navMatch, 'sidebar navigation is missing');
@@ -55,6 +61,36 @@ test('routing uses one hashchange listener and a safe mount/teardown lifecycle',
   assert.match(app, /worldHandle\s*=\s*world\.mount\(/);
   assert.match(app, /worldHandle = null;/);
   assert.match(app, /handle\.destroy\(\)/);
+});
+
+test('leaving CozyQuest restores focus after the in-world control destroys its button', () => {
+  const focus = functionSource('focusDashboardTarget');
+  const leave = functionSource('leaveCozyQuest');
+  assert.match(focus, /dashboard: '\.sidebar-nav \[data-view="dashboard"\]'/);
+  assert.match(leave, /const wasCozyQuest = activeView === 'cozyquest'/);
+  assert.match(leave, /if \(wasCozyQuest \|\| focusTarget\) focusDashboardTarget\(navKey\);/);
+});
+
+test('world reset recognizes explicit unlock grants as saved modifications', () => {
+  const hasWorldModifications = vm.runInNewContext(
+    functionSource('hasWorldModifications') + '\nhasWorldModifications;', {}
+  );
+  const withUnlock = {
+    schemaVersion: 2,
+    unlocks: [{ id: 'unlock:event', catalogId: 'decor:tree:oak', source: 'event' }],
+    ownership: { items: [] },
+    biomes: {}
+  };
+  const withoutChanges = { ...withUnlock, unlocks: [] };
+  assert.equal(hasWorldModifications(withUnlock), true);
+  assert.equal(hasWorldModifications(withoutChanges), false);
+});
+
+test('a pending rollback marker blocks further commits until reload', () => {
+  const commit = functionSource('commitState');
+  assert.match(commit, /if \(recoveryPending\)/);
+  assert.match(commit, /Reload the page before making more changes/);
+  assert.match(commit, /return false;/);
 });
 
 test('world controls use delegated listeners so clones never duplicate bindings', () => {

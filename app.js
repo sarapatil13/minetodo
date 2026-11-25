@@ -43,8 +43,9 @@ startupRecovery = stateCommit.recover(store);
 if (!startupRecovery.ok) {
   recoveryPending = true;
   console.warn('CozyQuest commit recovery issue:', startupRecovery.issues);
-} else if (startupRecovery.recovered) {
-  console.info('CozyQuest recovered a previous state commit.');
+} else {
+  recoveryPending = false;
+  if (startupRecovery.recovered) console.info('CozyQuest recovered a previous state commit.');
 }
 
 const loaded = storage.loadState(store);
@@ -323,15 +324,17 @@ function updateWorldGrowth(result) {
   updateCozyQuestGrowth(progress);
 }
 
-function syntheticGrowthResult(xp) {
+function syntheticGrowthResult(xp, previousXp = xp) {
   const progress = worldProgression.worldProgress(xp);
+  const previousStage = worldProgression.stageForXp(previousXp);
+  const previousFeatures = worldProgression.featureIdsForXp(previousXp);
   return {
     xp: progress.xp,
     progress,
-    previous: { stageId: 'starting-meadow', unlockedFeatures: [] },
-    stageChanged: progress.stage.id !== 'starting-meadow',
-    addedFeatures: progress.unlockedFeatures,
-    removedFeatures: []
+    previous: { xp: previousXp, stageId: previousStage.id, unlockedFeatures: previousFeatures },
+    stageChanged: previousStage.id !== progress.stage.id,
+    addedFeatures: progress.unlockedFeatures.filter((id) => previousFeatures.indexOf(id) === -1),
+    removedFeatures: previousFeatures.filter((id) => progress.unlockedFeatures.indexOf(id) === -1)
   };
 }
 
@@ -377,10 +380,10 @@ function composeWorldScene(xp, worldStateToCompose) {
   return composition;
 }
 
-function applyWorldComposition(composition, xp) {
+function applyWorldComposition(composition, xp, previousXp = xp) {
   // Dashboard commits still compose and preflight saved world state, but they
   // never touch a hidden or nonexistent controller.
-  if (activeView !== 'cozyquest' || !worldHandle) return syntheticGrowthResult(xp);
+  if (activeView !== 'cozyquest' || !worldHandle) return syntheticGrowthResult(xp, previousXp);
 
   const update = { xp, scene: composition.scene };
   const checked = worldHandle.preflightProgression(update);
@@ -459,12 +462,13 @@ function updateNavState(key) {
 }
 
 function focusDashboardTarget(target) {
-  const targetIds = {
-    tasks: 'tasks-widget',
-    calendar: 'calendar-widget',
-    focus: 'focus-widget'
+  const targetSelectors = {
+    dashboard: '.sidebar-nav [data-view="dashboard"]',
+    tasks: '#tasks-widget',
+    calendar: '#calendar-widget',
+    focus: '#focus-widget'
   };
-  const el = target && targetIds[target] ? $(targetIds[target]) : null;
+  const el = target && targetSelectors[target] ? document.querySelector(targetSelectors[target]) : null;
   if (!el) return;
   if (typeof el.scrollIntoView === 'function') {
     el.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -511,7 +515,7 @@ function enterCozyQuest() {
     if (!worldHandle) throw new Error('World controller could not be created.');
     renderBiomeControls();
     renderDecorationControls();
-    updateWorldGrowth(syntheticGrowthResult(xp));
+    updateWorldGrowth(syntheticGrowthResult(xp, xp));
   } catch (error) {
     destroyWorld();
     cozyView.replaceChildren();
@@ -527,6 +531,7 @@ function enterCozyQuest() {
 }
 
 function leaveCozyQuest(focusTarget = null) {
+  const wasCozyQuest = activeView === 'cozyquest';
   destroyWorld();
   const cozyView = $('view-cozyquest');
   const dashboardView = $('view-dashboard');
@@ -540,7 +545,7 @@ function leaveCozyQuest(focusTarget = null) {
   updatePageHeading('dashboard');
   const navKey = DASHBOARD_FOCUS_TARGETS.includes(focusTarget) ? focusTarget : 'dashboard';
   updateNavState(navKey);
-  focusDashboardTarget(navKey === 'dashboard' ? null : navKey);
+  if (wasCozyQuest || focusTarget) focusDashboardTarget(navKey);
 }
 
 function applyView(view, options = {}) {
@@ -567,6 +572,7 @@ function handleRouteChange() {
 function hasWorldModifications(worldStateToCheck) {
   if (!worldStateToCheck) return false;
   if (worldStateToCheck.schemaVersion === 2) {
+    if (Array.isArray(worldStateToCheck.unlocks) && worldStateToCheck.unlocks.length) return true;
     if (worldStateToCheck.ownership.items.length) return true;
     return Object.keys(worldStateToCheck.biomes).some((biomeId) => {
       const delta = worldStateToCheck.biomes[biomeId];
@@ -603,7 +609,7 @@ function reloadStoredState() {
       console.warn('CozyQuest world refresh issue:', error);
     }
   }
-  updateWorldGrowth(syntheticGrowthResult(xp));
+  updateWorldGrowth(syntheticGrowthResult(xp, xp));
 }
 
 function reportRollbackFailure(rollback, action) {
@@ -639,6 +645,12 @@ function handleCommitFailure(committed) {
 // composes, preflights, and preserves both previous values before writing; the
 // live world is changed only after every storage write succeeds.
 function commitState(nextState, settings = {}) {
+  // A failed rollback reads an older durable snapshot on the next load. Block
+  // further writes until that load happens, or they would be silently reverted.
+  if (recoveryPending) {
+    notify('A saved commit could not be rolled back. Reload the page before making more changes.', 'error');
+    return false;
+  }
   const domains = settings.domains || { task: true, world: false };
   const nextWorldState = domains.world
     ? (settings.worldState === undefined ? savedWorldState : settings.worldState)
@@ -660,13 +672,13 @@ function commitState(nextState, settings = {}) {
 
   let result;
   try {
-    result = applyWorldComposition(committed.composition, committed.xp);
+    result = applyWorldComposition(committed.composition, committed.xp, previousXp);
   } catch (error) {
     const undone = committed.rollback();
     if (!undone.ok) {
       reportRollbackFailure(undone, 'World update failed');
       render();
-      updateWorldGrowth(syntheticGrowthResult(previousXp));
+      updateWorldGrowth(syntheticGrowthResult(previousXp, previousXp));
       return false;
     }
     reloadStoredState();
@@ -1087,6 +1099,18 @@ $('focus-reset').addEventListener('click', () => {
   applyFocusState(focusTimer.reset());
 });
 window.addEventListener('pagehide', stopFocusInterval);
+window.addEventListener('pageshow', () => applyFocusState(focusTimer.tick()));
+
+// A v1 world block is a valid backup, but loadAnyState prefers an existing v2
+// key. Migrate it before committing so the imported world actually replaces
+// the saved one instead of being written to a key that is never read.
+function normalizeImportedWorld(worldStateToImport, now) {
+  if (!worldStateToImport || worldStateToImport.schemaVersion === worldStateModule.SCHEMA_VERSION_V2) {
+    return { ok: true, state: worldStateToImport, issues: [] };
+  }
+  const migrated = worldStateModule.migrateV1State(worldStateToImport, { now });
+  return { ok: migrated.ok, state: migrated.state, issues: migrated.issues.slice() };
+}
 
 $('export-json').addEventListener('click', () => {
   try {
@@ -1116,8 +1140,18 @@ $('import-file').addEventListener('change', (e) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    const result = transfer.parseImport(String(reader.result), { now: new Date().toISOString() });
+    const importedAt = new Date().toISOString();
+    const result = transfer.parseImport(String(reader.result), { now: importedAt });
     if (!result.ok) { notify('Import rejected: ' + result.error, 'error'); return; }
+    let importedWorld;
+    if (result.hasWorld) {
+      const normalized = normalizeImportedWorld(result.worldState, importedAt);
+      if (!normalized.ok) {
+        notify('Import rejected: world backup could not be migrated. ' + normalized.issues.join('; '), 'error');
+        return;
+      }
+      importedWorld = normalized.state;
+    }
     const s = result.summary;
     const worldLine = result.hasWorld
       ? '\nWorld changes: included; they will replace your saved world changes.'
@@ -1135,7 +1169,7 @@ $('import-file').addEventListener('change', (e) => {
     if (!confirm(message)) return;
     commitState(result.state, {
       domains: { task: true, world: result.hasWorld },
-      worldState: result.worldState,
+      worldState: importedWorld,
       backup: true,
       message: 'Backup imported 🌿',
       tone: 'success'
@@ -1211,7 +1245,8 @@ document.addEventListener('click', (e) => {
 
 render();
 applyFocusState(focusTimer.snapshot());
-updateWorldGrowth(syntheticGrowthResult(currentXp()));
+const startupXp = currentXp();
+updateWorldGrowth(syntheticGrowthResult(startupXp, startupXp));
 
 // A reload always lands on the dashboard. A fresh direct #cozyquest load still
 // enters CozyQuest, and later hash changes drive back/forward navigation.

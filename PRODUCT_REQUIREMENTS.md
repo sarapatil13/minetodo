@@ -84,14 +84,22 @@ These are intentionally staged, not rejected. The MVP should first prove that ma
 
 ## 7. Reward economy — initial balancing hypothesis
 
-| Priority | XP | Coins | Resource reward |
-|---|---:|---:|---|
-| Low | 10 | 3 | 1 wood |
-| Medium | 20 | 6 | 2 wood |
-| High | 35 | 10 | 2 stone |
-| Urgent + important | 50 | 15 | 1 iron |
+| Tier | Flags | XP | Coins | Resource reward |
+|---|---|---:|---:|---|
+| Low | none | 10 | 3 | 1 wood |
+| Low | urgent | 16 | 4 | 1 wood |
+| Low | important | 19 | 5 | 1 wood |
+| Low | urgent + important | 25 | 7 | 2 wood |
+| Medium | none | 20 | 6 | 2 wood |
+| Medium | urgent | 26 | 7 | 2 wood |
+| Medium | important | 29 | 8 | 2 wood |
+| Medium | urgent + important | 35 | 10 | 2 stone |
+| High | none | 35 | 10 | 2 stone |
+| High | urgent | 41 | 12 | 2 stone |
+| High | important | 44 | 13 | 2 stone |
+| High | urgent + important | 50 | 15 | 1 iron |
 
-Values are placeholders for testing. Future balancing should account for task size, frequency, and abuse cases. Avoid making urgent tasks the default best strategy; urgency and importance should be distinct from effort where possible.
+Coins are `floor(XP * 0.3)`. Resources use XP bands: `<20` → 1 wood, `20–34` → 2 wood, `35–49` → 2 stone, `>=50` → 1 iron. These values are placeholders for testing and match `src/rules.js`. Future balancing should account for task size, frequency, and abuse cases. Avoid making urgent tasks the default best strategy; urgency and importance should be distinct from effort where possible.
 
 ### Permanent-reward invariant
 
