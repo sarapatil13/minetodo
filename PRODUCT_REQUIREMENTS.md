@@ -1,88 +1,99 @@
-# CozyQuest — Product Requirements Document
+# Minetodo and CozyQuest — Product Requirements Document
 
-**Status:** Living PRD — MVP definition plus the implemented Phase 2.8.6 responsive polish slice
-**Product direction:** Cozy, game-inspired productivity and self-care companion  
-**Initial platform:** Responsive web app, local-first  
+**Status:** Living PRD — Phase 2.8 implemented and documented; baseline `77a8227`
+**Product direction:** Cozy, game-inspired productivity and self-care companion
+**Platform:** Responsive, local-first web app; no backend required
 
-## 1. Product vision
+This document describes the product as implemented, not a future roadmap. See [README.md](README.md) for the quick start and [ARCHITECTURE.md](ARCHITECTURE.md) for module-level implementation guidance.
 
-Help people make progress on everyday responsibilities and self-care through a gentle, rewarding loop: complete real-life actions, earn XP/coins/resources, and gradually grow a cozy isometric voxel world.
+## 1. Product vision and problem
 
-## 2. Target user and problem
+Help people make progress on everyday responsibilities and self-care through a gentle loop: complete a real-life action, earn XP/coins/resources, and gradually grow a cozy isometric world.
 
-Initial target: an individual who wants one place to manage tasks, routines, focus, and self-care, but finds conventional productivity tools emotionally flat or overly punitive. The product should make progress visible and rewarding without shaming users for missed tasks.
+The initial user is someone who wants one place to manage tasks, routines, focus and self-care, but finds conventional productivity tools emotionally flat or punitive. The product should make progress visible and rewarding without shaming users for missed tasks.
 
-This is a product hypothesis. Module 1's design-thinking approach calls for testing it through conversations about real recent behaviour, not assuming that the feature list proves demand.
+This remains a product hypothesis. It should be validated with conversations about real recent behavior, not assumed from the feature list.
 
-## 3. Product principles
+## 2. Product principles
 
-- Cozy and encouraging; no punishment for missed tasks.
-- Private by default; sharing is an explicit later choice.
-- Finish a small useful version before expanding scope.
-- Rewards should reinforce meaningful effort, not encourage repetitive reward farming.
-- AI suggestions must be explainable and leave decisions with the user.
-- Local-first for the first version; be clear that browser-local data is device/browser specific.
+- **Productivity first.** Minetodo is a usable task manager on its own; CozyQuest is an optional reward layer.
+- **One shared engine.** Tasks, rewards, XP, unlocks and the world read from the same authoritative state. No second XP counter exists.
+- **Local-first and private.** Data lives in the current browser profile. There is no account, backend or cloud sync requirement.
+- **Cozy and encouraging.** Missed, reopened or deleted tasks never remove rewards already earned.
+- **Permanent completion rewards.** A reward belongs to a completion event, not to the live task record.
+- **Responsive and accessible.** Controls work across desktop, tablet, mobile and narrow-mobile widths, with visible focus, labels, live regions and reduced-motion handling.
+- **Small dependency surface.** The core experience needs no external AI service, backend, framework, package manager or build step.
+- **Explainable progression.** XP, levels, stages, milestones and unlock requirements are derived from task state and documented thresholds.
 
-## 4. Confirmed product decisions
+## 3. Implemented product scope
 
-| Area | Requirement |
-|---|---|
-| World style | Cozy |
-| World view | 2D isometric voxel-inspired |
-| Building | Both free placement and unlockable/prebuilt structures |
-| Task types | Quick, daily, recurring, projects, calendar, self-care |
-| Priority | Simple levels plus urgent/important distinction |
-| Input | Manual and voice (voice deferred from first MVP) |
-| Focus timer | Pomodoro and custom (delivered in Phase 2.8.3) |
-| Flower appreciation | Decorative, deterministic flowers beside completed task titles (delivered in Phase 2.8.4) |
-| CozyQuest identity | Immersive in-app world view with shared progression and a clear return to Minetodo (delivered in Phase 2.8.5) |
-| Responsive layout | Polished desktop-to-narrow-mobile behavior for Minetodo and CozyQuest (delivered in Phase 2.8.6) |
-| Rewards | XP, levels, coins, resources, achievements, items, biomes |
-| Reward rule | Every completed task earns both coins and resources; quantity/rarity varies by priority. Rewards are permanent: reopening or deleting a task never reverses them, and recompleting never pays twice. |
-| Missed tasks | Gentle handling; no loss of earned rewards |
-| Self-care | Mood, journal, habits, breathing, reflection |
-| Companion | Yes |
-| Social | Friends can visit; shared/collaborative world rules to be defined later |
-| Storage | Local-first initially |
-| Additional | Analytics, themes, AI suggestions |
+### Minetodo
 
-## 5. MVP scope — first finished useful version
+- Dashboard as the default landing view with welcome copy, daily scheduled-task progress, lifetime completed-step count, XP/points, level progress, coins and resources.
+- Sidebar navigation for Dashboard, My Tasks, Calendar, Focus and CozyQuest. The first four focus or scroll dashboard widgets; only CozyQuest is a separate view.
+- Create, view, edit, complete, reopen and delete tasks.
+- Task types: Quick task, Daily habit, Recurring task, Project and Self-care.
+- Priority: Low / Medium / High effort tier plus independent Urgent and Important flags.
+- All / To do / Completed filters, with optional calendar-date filtering.
+- Monthly task calendar with month navigation, today and task-date markers, quick add and a clear-filter control.
+- Pomodoro and custom focus timers with in-widget feedback.
+- Decorative flowers beside completed task titles.
+- JSON export/import, local backup keys and recovery handling.
 
-### Must have
-- Create, view, edit, delete, complete, and reopen tasks.
-- Task title, type, due date, and priority.
-- All / To do / Completed views.
-- Persist tasks and progress locally across browser reloads.
-- Award XP, coins, and a resource for each completed task.
-- Priority affects XP, coin quantity, and resource type/rarity.
-- Show level progress and resource inventory.
-- Gentle empty states and clear feedback.
-- Basic responsive layout and an isometric-inspired home-world preview.
+### Optional CozyQuest
 
-### Not in first MVP
-- Accounts/authentication and cloud sync.
-- Friends, visits, collaborative worlds, permissions.
-- Voice input.
-- Full calendar, recurring automation, subtasks/project boards.
-- Focus timer.
-- Mood journal, breathing, reflection workflows.
-- Companion interactions.
-- Functional crafting, item shop, spending/purchase ledger, object rotation, a full map editor, multiplayer, and cloud sync.
-- Analytics dashboards and AI predictions/suggestions.
+- Canvas 2D isometric meadow with camera pan/zoom and read-only object/pond inspection.
+- Four world stages, two intermediate milestones and a six-step cosmetic level ladder.
+- Five biomes and a seven-item decoration catalog with typed unlock requirements.
+- Independently owned item instances, per-biome placement state, move/remove/switch controls and a reset for saved world changes.
+- Shared XP and progression derived from the task ledger.
+- World-state v2, legacy v1 migration, validation, quarantine, export/import and rollback-safe commits.
+- Distinct in-app CozyQuest view with introduction, shared-progress summary and a clear return to Minetodo.
 
-These are intentionally staged, not rejected. The MVP should first prove that managing and completing tasks with the reward loop is useful and understandable. Phase 2.7 later added decoration acquisition/placement and biome switching; those are described in §11 and do not imply a shop, crafting, spending, rotation, multiplayer, or cloud sync.
+### Explicitly not implemented
 
-## 6. User stories and acceptance criteria
+Accounts, cloud sync, friend visits or collaborative worlds, voice input, automatic recurrence, AI suggestions, analytics, mood/journal/breathing/self-care workflows, companion interactions, shop/spending economy, crafting, object rotation, full map editor, real-time 3D movement, flower inventory/collection scoring and competitive mechanics.
 
-1. **As a user, I can add a task** so I can capture something I need to do. Done when a valid title can be saved and appears in the task list.
-2. **As a user, I can edit or delete a task** so my list stays accurate. Done when edits persist and deletion removes only the selected task after confirmation.
-3. **As a user, I can complete a task** so I can see progress. Done when it moves to Completed and rewards are credited once.
-4. **As a user, I can choose priority** so more demanding/important work can earn better rewards. Done when reward amounts and resource tier follow the selected priority.
-5. **As a user, I can reopen a completed task** so I can correct an accidental completion. Done when the task returns to To do and its previously earned XP, coins, resources, and ledger entry stay in place; completing it again does not grant a second reward.
-6. **As a user, I can refresh the page** so my progress remains. Done when tasks, XP, coins, and resources are restored from local storage.
-7. **As a user, I can filter tasks** so I can focus on what needs attention. Done when All, To do, and Completed filters show the correct tasks.
+Task types named **Daily habit** and **Recurring task** are labels only. No automatic recurrence engine or recurring calendar generation exists.
 
-## 7. Reward economy — initial balancing hypothesis
+## 4. Dashboard and navigation
+
+- The dashboard is always present in the DOM and is the default view on startup and reload.
+- Sidebar entries for My Tasks, Calendar and Focus scroll to and focus their dashboard widgets; they do not create separate routes.
+- CozyQuest has a single hash route, `#cozyquest`. All other hashes map to the dashboard. A fresh direct `#cozyquest` load enters CozyQuest; a reload lands on the dashboard.
+- Entering CozyQuest clones the inert world template into the live view, toggles a single `body.is-cozyquest` class, updates the page heading/navigation state and mounts the canvas controller.
+- Leaving CozyQuest destroys the world handle, clears the cloned markup, removes the body class and restores dashboard focus.
+- The return button and cloned world controls are handled by delegated document listeners, so repeated mounts never duplicate bindings.
+
+## 5. Task engine
+
+### Task schema constraints
+
+A valid task has:
+
+- a non-empty string `id`;
+- a trimmed `title` between 1 and 90 characters;
+- a `type` from `Quick task`, `Daily habit`, `Recurring task`, `Project`, `Self-care`;
+- a valid `priority` object with `tier` in `low` / `medium` / `high` and boolean `urgent` and `important` fields;
+- an optional `date` string in calendar-valid `YYYY-MM-DD` form, or an empty string;
+- boolean `done` and `rewardClaimed` flags;
+- a parseable `createdAt` timestamp string.
+
+Invalid dates, titles, priorities, types and flags are rejected by creation/edit paths and by storage validation. Malformed stored records are skipped with reported issues; structurally invalid task state is quarantined.
+
+### Lifecycle behavior
+
+- Creating a task sets `done: false` and `rewardClaimed: false`.
+- Completing an open task sets `done: true`, adds one ledger entry when the reward has not been claimed, and sets `rewardClaimed: true`.
+- Reopening sets `done: false` and leaves the ledger entry and claim intact.
+- Recompleting a reopened task changes `done` back to `true` but adds no second ledger entry.
+- Deleting a task removes only the task record. Ledger entries for completed tasks remain.
+- Priority is locked while a task is completed. Title, type and date remain editable.
+- The displayed completed-task count is `rules.countCompleted(state)`: the number of current tasks with `done === true`. It is intentionally different from the lifetime ledger count.
+
+## 6. Reward system
+
+`src/rules.js` is the sole reward authority. Coins are `floor(XP * 0.3)`. Resource rewards use XP bands: `<20` → 1 wood, `20–34` → 2 wood, `35–49` → 2 stone, `>=50` → 1 iron.
 
 | Tier | Flags | XP | Coins | Resource reward |
 |---|---|---:|---:|---|
@@ -99,118 +110,158 @@ These are intentionally staged, not rejected. The MVP should first prove that ma
 | High | important | 44 | 13 | 2 stone |
 | High | urgent + important | 50 | 15 | 1 iron |
 
-Coins are `floor(XP * 0.3)`. Resources use XP bands: `<20` → 1 wood, `20–34` → 2 wood, `35–49` → 2 stone, `>=50` → 1 iron. These values are placeholders for testing and match `src/rules.js`. Future balancing should account for task size, frequency, and abuse cases. Avoid making urgent tasks the default best strategy; urgency and importance should be distinct from effort where possible.
+These are placeholder values for usability testing. Future balancing should consider task size, frequency and abuse cases. Urgency and importance remain independent from effort.
+
+Legacy `critical` priority migrates to High + Urgent + Important, preserving the old 50 XP outcome.
 
 ### Permanent-reward invariant
 
-A reward belongs to the completion event, not to the live task record. Completing a task appends exactly one ledger entry and marks the task's reward claimed. Reopening the task does not remove the entry or clear the claim; deleting the task removes the task but keeps its entry. Totals are always `baseline + ledger` and the completed-task count is derived from tasks currently marked done. Consequently, reopening or deleting a task must never reduce lifetime XP, revoke a world/achievement unlock, or remove an owned decoration. This invariant applies to the avatar economy and to every derived or owned world reward.
+- Displayed XP, coins and resources are always `baseline + ledger entries`.
+- Completing a task appends exactly one ledger entry with a priority snapshot and validated reward.
+- Reopening does not reverse rewards or clear `rewardClaimed`.
+- Recompletion does not pay twice.
+- Deleting a completed task keeps the ledger entry and all derived totals.
+- Storage validation rejects ledger rewards that do not match their priority snapshot.
+- Completion-based unlocks use the permanent ledger count, not the current completed-task count. Reopening or deleting a completed task therefore cannot revoke a decoration or biome unlock.
+- Level, world stage and milestone features are derived from lifetime XP and are never stored as progression fields.
 
-## 8. Data and privacy
+Flowers are decorative only and never enter the reward calculation.
 
-- First prototype stores data in browser `localStorage` on the current device/browser.
-- This is not cloud backup and does not automatically sync across devices.
-- Do not store credentials or sensitive personal information in source control.
-- When accounts/friends are introduced, private tasks remain private by default. For every shared item define who can view, edit, and delete it; test with two separate accounts.
+## 7. Flower appreciation
 
-## 9. Quality and testing
+- `CQ.flowers` has eight frozen varieties: Cherry blossom, Hibiscus, Sunflower, Tulip, Daisy, Rose, Lotus and Rosette.
+- Variety selection is a deterministic FNV-1a hash of the trimmed stable task ID. Filtering, reordering, reloads, reopening and recompletion keep the same flower.
+- Missing, empty or non-string IDs receive no flower. Lookup never mutates the task or the returned variety.
+- Completed tasks show one small flower beside the title. The span is `aria-hidden`; the existing check button retains its completion label.
+- A bloom animation is queued only when a task actually moves from incomplete to complete and is consumed by the next task-list render. Reloads, unrelated renders, calendar selection, navigation and timer ticks do not replay it.
+- Reduced motion is respected by CSS and by a JavaScript preference check that omits the bloom class.
+- Flowers carry no XP, coins, resources, inventory value, collection score, rewards or storage state. They must never be described as collectibles or currency.
 
-- Test create/edit/delete/complete/reopen and reload persistence.
-- Test empty task lists and each filter.
-- Test every priority's reward mapping and ensure a task rewards only once, including after reopen/delete cycles.
-- Test unlock derivation, deterministic v1→v2 migration, ownership/placement invariants, and biome isolation.
-- Test mobile and desktop layouts.
-- Ask a person unfamiliar with the app to use it without explanation; observe pauses and confusion, then fix the most important issue first.
+## 8. Calendar
 
-## 10. Roadmap aligned to Samagra modules
+- `CQ.calendar` is pure and uses local calendar components, not UTC conversion.
+- It builds a Sunday-first month grid with neighbouring-month padding, a local today marker and task counts derived from `task.date`.
+- Undated tasks are never mapped to a calendar day.
+- Selecting a date filters the task list by that exact local date and composes with the existing All / To do / Completed filter. Clearing the date restores the full list.
+- Selecting a neighbouring-month date moves the visible month to that date.
+- Quick add opens the shared task dialog with the selected date, or today's local date when nothing is selected. All validation and creation still flow through the single task-form path.
+- Dates must be calendar-valid `YYYY-MM-DD` strings; impossible dates are rejected.
+- Automatic recurrence generation and recurring calendar entries are not implemented.
 
-### Module 1 — Philosophy and building the right thing
-- Make requirements explicit and testable.
-- Validate the user problem with short interviews about the last time someone struggled to manage tasks or maintain a routine.
-- Prototype the smallest finished loop and test it before adding breadth.
+## 9. Focus timer
 
-### Module 2 — The first flight
-- Stage 1: task CRUD, permanent rewards, and local persistence (delivered).
-- Stage 1/2 world slice: Phases 2.1–2.7 — deterministic isometric renderer, grid/terrain model, camera and inspection, XP-derived growth, persisted user deltas, and the Phase 2.7 catalog/biome/decoration layer (delivered).
-- Stage 2: robust data handling, an undo/history view, recurring-task behaviour, edge-case tests.
-- Stage 3: authentication only when multi-user features are ready; private-by-default ownership and explicit view/edit/delete permissions for sharing.
-- Stage 4: later, explore gentle deadline-risk warnings from historical task data; avoid data leakage and explain why a warning appears. Keep user choice in control.
+- `CQ.focusTimer` is pure and accepts an injectable clock for deterministic tests.
+- The preset is 25 minutes; custom durations are clamped to 1–1440 minutes.
+- Supported controls: start, pause, resume, reset and custom duration setting.
+- Remaining time is calculated from a target timestamp, so delayed or skipped ticks do not drift.
+- The app owns one 250 ms interval. It updates timer DOM only and is cleared on pause, reset, completion and `pagehide`; `pageshow` resynchronizes the UI from the timer model.
+- Timer state is memory-only. Completion feedback stays in the widget and awards no XP, coins, resources or rewards.
 
-### Module 3 — Code journaling
-- Use Git commits as working checkpoints; commit only when the app works.
-- Use meaningful commit messages and inspect every diff.
-- Keep secrets and private user data out of GitHub; add `.gitignore` before adding environment files.
-- Develop risky features on branches; test old flows before merging.
-- Use pull requests for review when collaborators join.
-- Revert pushed shared changes rather than rewriting shared history; tag stable milestones.
+## 10. CozyQuest
 
-## 11. Phase 2.7 world content (implemented)
+### World structure
 
-Phase 2.7 adds unlockable decorations, independently owned items, and multiple biomes without changing the task economy, reward matrix, XP thresholds, four stages, two milestones, feature IDs, 11×9 grid, or scene bounds.
+- World state v2 is the active envelope: world identity, `activeBiome`, explicit non-derivable `unlocks`, `ownership.items` and one delta bucket per biome.
+- Deltas contain placed, moved and removed objects plus terrain patches. They never contain XP, stage, milestone claim, derived unlock availability or reward values.
+- Derived progression produces a base scene from XP; saved user deltas are applied second. `CQ.world.content.compose()` validates the resulting map, preserves scene bounds and reports skipped conflicts.
+- `CQ.world.unlocks` evaluates closed, typed requirement objects (`always`, `xp`, `completed-tasks`, `ledger-entries`, `achievement`, `grant`, `event`, `purchase`, `all`, `any`). Unknown or malformed definitions are rejected rather than interpreted.
+- XP comes from `rules.computeTotals(state).xp`; completion counts used for unlocks come from the ledger; non-derivable grants come from world state.
 
-- **Content catalog** (`CQ.world.contentCatalog`) is a frozen, pure list of seven items. Each item has a stable `decor:*` ID, supported biomes, a typed unlock descriptor, and `autoGrant: false`. Catalog entries describe types, never owned copies or placements.
-- **Unlock evaluator** (`CQ.world.unlocks`) reads only `rules.computeTotals(state).xp`, `rules.countCompleted(state)`, and ledger length for derivable requirements. Achievement requirements are derived from task state; only event/purchase/explicit achievement grants are stored in world state. Descriptors are closed typed objects, frozen, side-effect-free, and reject unknown or malformed definitions — no strings are parsed or evaluated.
-- **Biome catalog** (`CQ.world.biomeCatalog`) defines five biomes: `meadow` (always), `forest` (10 completed tasks), `lakeside` (500 XP), `autumn` (900 XP), and `snowy` (20 reward entries). Each biome clones the meadow object layout and varies terrain/palette only, so grid dimensions and `coords.sceneBounds()` are unchanged. New palettes are used instead of new terrain IDs.
-- **World state v2** (`cozyquest.world-state.v2`) is one envelope containing ownership records, explicit unlock grants, one `activeBiome`, and per-biome object/terrain deltas. `unlocked`, `owned` (`user:item:*`), and `placed` (`user:placement:*`) are distinct. An owned instance may be placed at most once across all biomes; moving preserves placement and ownership IDs; removing preserves ownership. XP unlocks and derivable achievements are never stored as unlock records.
-- **Deterministic migration** converts v1 deltas into v2 meadow ownership/placements with stable derived IDs, preserving identity, names, timestamps, moves, removals, terrain, salts, and references. The v1 key is never rewritten or deleted; migration is side-effect free until an explicit save/commit.
-- **Composition and switching** keep one active biome. Switching never deletes or overwrites another biome's deltas. Incompatible saved placements are retained in state, skipped during composition with reported issues, and restored when a compatible biome is active. Unlocks are enforced at acquire/place/switch time, not at render time, so reopening or deleting a task cannot reverse an earned reward.
-- **App controls** let the player choose a biome, acquire unlocked items, place/move/remove decorations at a chosen cell, and reset saved world changes.
+### Progression and content
 
-Out of scope for this phase: shop, crafting, spending, purchase ledger, rotation, multiplayer, cloud sync, full map editor, new reward values, and new XP thresholds.
+Cosmetic levels are `Seedling` 0, `Sprout` 100, `Sapling` 250, `Bloom` 500, `Grove Keeper` 900 and `Forest Guardian` 1400.
 
-## 12. Open decisions for later
+World stages are Starting Meadow (0), Growing Meadow (100), Developed Village (500) and Thriving Village (1400), with intermediate accents at 250 and 900 XP. All features are monotonic and derived; a lower imported XP total can legitimately lower the derived stage.
 
-- Whether to extend the five fixed biomes and seven catalog items defined in Phase 2.7.
-- Shop catalogue and item pricing (no shop, crafting, spending, or purchase ledger exists yet).
-- Companion type, personality, and care mechanics.
-- Whether friends can only visit or also collaborate, and the permissions for each action.
-- Voice-input provider and privacy behaviour.
-- Whether the eventual product should remain web-first or add a native mobile client.
+The seven decoration catalog entries are Daisy Cluster (100 XP), Lavender Bush (250 XP), Little Oak (500 XP), Cattail Reeds (900 XP), Picket Fence (1400 XP), Cottage Accent (10 lifetime completion rewards) and Snowdrop Cluster (20 lifetime reward entries). Every entry has `autoGrant: false`: unlocking grants availability only, never ownership.
 
-## 13. Phase 2.8.3 calendar and focus widgets (implemented)
+The five biomes are Meadow Haven (always), Whispering Forest (10 lifetime completion rewards), Lakeside Rest (500 XP), Amber Hollow (900 XP) and Snowy Village (20 lifetime reward entries). Each biome reuses the meadow object layout with deterministic terrain presets and palettes, preserving grid dimensions and scene bounds.
 
-Phase 2.8.3 adds two dashboard widgets while preserving the task schema, reward matrix, permanent ledger, world-state v2, export/import, sidebar routing, and CozyQuest mount/teardown lifecycle.
+### Ownership and placement
 
-- The calendar displays the current local month/year, supports previous/next navigation, highlights today, marks dates with scheduled tasks, filters the existing task list by a selected date, and offers a clear control. Selection composes with the existing All / To do / Completed filters. Undated tasks remain unscheduled, and no recurrence behaviour or new storage field is introduced.
-- Calendar quick add opens the existing task dialog with the selected local date prefilled. Validation, task creation, and rewards still have one implementation path.
-- The focus widget supports a 25-minute Pomodoro preset, custom minute durations, start, pause, resume, reset, and visible completion feedback. State is memory-only.
-- Timer calculations are timestamp-based, not interval-count based. One owned interval updates timer DOM only, is cleared on pause/reset/completion/`pagehide`, and never calls the full application render or rebuilds the task list.
-- Both pure UMD modules (`CQ.calendar`, `CQ.focusTimer`) remain classic-script and `file://` compatible; the timer clock is injectable for deterministic tests.
+- A catalog definition is distinct from an owned instance (`user:item:*`) and a placement instance (`user:placement:*`).
+- An owned instance can be placed at most once across all biomes. Moving preserves both IDs; removing deletes only the placement and preserves ownership.
+- Unlocks are enforced when acquiring, placing or switching biomes. Composition uses `enforceUnlocks: false` so reopening or deleting tasks cannot reverse an earned unlock or owned decoration.
+- Switching biomes changes only `activeBiome`; other biomes' deltas remain intact. Incompatible saved placements are retained but skipped with issues until a compatible biome is active.
+- **Reset world changes** clears saved deltas and explicit grants after confirmation. It does not change tasks, XP, levels, stages or earned unlock availability.
 
-Out of scope for that phase: recurrence or recurring automation, notification sounds, focus-session history, storage of timer state, and any change to task rewards or world progression.
+### Legacy migration
 
-## 14. Phase 2.8.4 flower appreciation (implemented)
+A valid v1 world delta is deterministically migrated into the v2 meadow bucket: legacy placements become owned instances plus placements with stable derived IDs, while moves, removals, terrain, names, timestamps, salts and references are preserved. Migration is side-effect free until an explicit save or commit, and the v1 key is never rewritten or deleted.
 
-Phase 2.8.4 adds gentle appreciation to task completion while preserving the task schema, reward matrix, permanent ledger, world-state v2, export/import, sidebar routing, and CozyQuest lifecycle.
+## 11. Persistence, backup and recovery
 
-- `CQ.flowers` is a pure UMD module with eight distinct, frozen varieties. Assignment is a deterministic FNV-1a hash of the stable task ID, so filtering, reordering, reloads, reopening, and recompletion keep the same decorative flower. Missing, empty, or non-string IDs receive no flower, and lookup never mutates task data.
-- Completed tasks show one small flower beside the title. The flower is `aria-hidden` because it is decorative, while the existing check button keeps its accessible completion label. No external image or new storage key is introduced.
-- A bloom animation is queued only for an incomplete-to-complete transition and consumed by the next render. Reloads, unrelated full renders, calendar selection, navigation, and timer ticks never replay it.
-- Reduced motion is respected both by a CSS media query and by a JavaScript preference check that omits the bloom class entirely.
-- Flowers are appreciation, not currency. They never change XP, coins, resources, reward claims, occurrence inference, inventory, collection pressure, or competitive mechanics.
+| Key | Responsibility |
+|---|---|
+| `cozyquest.mvp.v1` | Original task data; migrated and preserved untouched. |
+| `cozyquest.task-engine.v2` | Active task state with `schemaVersion`, `baseline`, `tasks`, `ledger`. |
+| `cozyquest.invalid-backup.<timestamp>` | Quarantine for malformed task data. |
+| `cozyquest.backup.<timestamp>` | Timestamped task backups before accepted imports; newest three kept. |
+| `cozyquest.world-state.v1` | Legacy world deltas; preserved untouched. |
+| `cozyquest.world-state.v2` | Active world state v2 envelope. |
+| `cozyquest.invalid-world-backup.<timestamp>` | Quarantine for malformed world data; never affects task state. |
+| `cozyquest.world-backup.<timestamp>` | Timestamped world backups before accepted imports and world resets; newest three kept. |
+| `cozyquest.commit-recovery.v1` | Durable marker replayed at startup when rollback could not complete. |
 
-Out of scope for that phase: recurrence, notification sounds, focus-session history, stored flower state, flower inventory, collection scoring, competitive mechanics, and any change to task rewards or world progression.
+Task v1 migration moves known completed-task rewards into the ledger and subtracts them from old totals to form the baseline, preserving displayed totals. The completed count is recalculated from current tasks.
 
-## 15. Phase 2.8.5 CozyQuest integration and visual identity (implemented)
+Export produces a JSON envelope with app name, schema version, timestamp, task state and optional world state. Import is capped at 1 MB and validates JSON shape, app identity, schema version, timestamp, task state and any explicit world block before confirmation. A v1 world block is migrated to v2 before commit so it replaces the saved world correctly. An absent world block means "keep the current world", not "reset the world".
 
-Phase 2.8.5 gives CozyQuest a polished full-page identity inside the existing Minetodo shell. It preserves the task schema, reward matrix, permanent ledger, world-state v2, export/import, hash router, mount/teardown lifecycle, and all Phase 2.7 biome/decoration controls.
+`localStorage` lacks cross-key atomicity. `CQ.stateCommit.commit()` validates task and world state, derives XP, composes and preflights the scene, preserves previous raw values, writes optional backups, then writes only the requested domain keys. A failed write rolls back the bytes already written. If rollback fails, a recovery marker is saved, replayed before domain loads on the next startup, and further commits are blocked until that reload occurs.
 
-- The shared shell switches to a single `body.is-cozyquest` state on entry and removes it on every exit, failed entry, reload-to-dashboard, or return control press. Minetodo's mint-green productivity identity remains the default state.
-- The existing world template now contains a CozyQuest heading, an introduction connecting real task completion to world growth, and an accessible return button labelled **Back to Minetodo Dashboard**. The button is handled by the existing delegated document click listener and router, so cloning the template never duplicates bindings.
-- A progression summary shows XP, level, world stage, stage progress, and next unlock. XP/level are written by `renderStats()` from `rules.computeTotals()`, and stage/percent are written by `updateWorldGrowth()` from the existing `worldProgression.worldProgress()` result. There is still only one derived XP path and one derived world-progression path.
-- Entering CozyQuest composes the live world from `currentXp()`, so XP earned in Minetodo is reflected without a second reward calculation. Existing world controls, ownership, placement, movement, removal, biome switching, reset, and backup/import behavior are unchanged.
-- The CSS layer adds a nature-inspired shell atmosphere, a responsive hero and progress panel, a larger immersive canvas, reduced-motion-safe transitions, and accessible focus states across desktop, tablet and mobile.
-- Flowers remain task-presentation decoration only. They are not CozyQuest currency, collectibles, inventory, or a source of XP/coins/resources.
+No credentials or sensitive personal data belong in source control. Browser-local task data should not be committed.
 
-Out of scope for that phase: a standalone CozyQuest app, backend or framework dependencies, new reward values or XP thresholds, world-state schema v3, new task fields, shop/spending economy, crafting, multiplayer, cloud sync, flower progression, and changes to recurrence.
+## 12. Quality and testing
 
-## 16. Phase 2.8.6 responsive polish (implemented)
+Run the complete hermetic suite from the repository root:
 
-Phase 2.8.6 refines responsive behavior across large desktop, laptop, landscape/portrait tablet, mobile, and narrow mobile widths. It preserves the task schema, reward matrix, permanent ledger, calendar semantics, focus timer calculations, world-state v2, biome/decoration mechanics, reset, export/import, hash router, mount/teardown lifecycle, and `file://` compatibility.
+```bash
+node --test
+```
 
-- The tablet layout breakpoint begins at 1180px so laptop and tablet-landscape widths no longer clip the calendar grid, focus duration input, or long task titles inside a three-column welcome grid.
-- Task filters, the task toolbar, and focus presets wrap instead of forcing content into shrinking columns. Calendar navigation, day cells, quick add, completion checks, task actions, and world controls have comfortable touch targets.
-- At 440px and below, the CozyQuest decoration catalog, ownership, and placed-item lists stack into one readable column. Biome and placement inputs use the available width, and world footer actions remain reachable.
-- The decorative CozyQuest hero flourish is hidden in the tablet/mobile layout where it previously expanded the hero's scroll width. The existing reduced-motion and visible-focus safeguards remain intact.
-- No new script, module, framework, build step, backend, state store, reward calculation, or animation system was introduced. The established Minetodo and CozyQuest visual identities are unchanged.
+Automated coverage includes the 12-combination reward matrix, formulas, invariant and stress cases, task lifecycle, date validation, migration, storage validation and quarantine, backup pruning, export/import rejection, script order and shell contracts, calendar generation, timer lifecycle, flower determinism and bloom contracts, world geometry and rendering, camera and interaction semantics, progression, world-state validation, two-domain commits and recovery, unlocks, biomes and decorations.
 
-Out of scope for this phase: a product redesign, new product features, task/reward changes, calendar or timer behavior changes, world-engine changes, persistence changes, and Phase 2.8.7 work.
+Browser regression is manual: task CRUD and reload, filters, calendar and quick add, focus lifecycle, repeated CozyQuest entry/exit, canvas controls, decoration actions, reset, export/import, responsive widths, keyboard focus and reduced motion.
+
+## 13. Historical implementation decisions
+
+These decisions remain in force unless explicitly revised:
+
+- **Phase 2.1:** the Canvas meadow is an isometric grid with a single painter-order queue; rendering is independent of tasks and rewards.
+- **Phase 2.2:** canonical terrain definitions and aliases resolve queries without rewriting stored raw IDs; grid operations are immutable.
+- **Phase 2.3:** camera focus is stored in scene-space coordinates so zoom survives resize; one input handle owns listeners.
+- **Phase 2.4:** object/pond inspection is read-only and uses renderer-derived hit shapes with deterministic painter-order tie-breaks.
+- **Phase 2.5:** XP-derived stages and milestones are recomputed from the ledger; no stage or claim is persisted.
+- **Phase 2.6:** only user-owned world deltas are persisted; two-domain commits preflight and roll back, with a durable recovery marker when rollback fails.
+- **Phase 2.7:** world state v2 separates catalog definitions, owned instances and placements; unlock descriptors are typed and never evaluated as strings.
+- **Phase 2.8:** the dashboard became the default workspace; calendar, focus and flower modules are pure UMD modules; CozyQuest gained a shared-shell identity; responsive polish covered laptop through narrow mobile; the stabilization commit tightened date validation, growth announcements, focus restoration, world-import migration and recovery gating.
+
+## 14. Acceptance criteria
+
+1. A user can add, edit, complete, reopen and delete a task, and valid changes survive reload.
+2. Every priority combination awards the documented XP, coins and resource exactly once.
+3. Reopening, recompleting and deleting never reduce lifetime totals or revoke unlocks.
+4. Calendar dates are calendar-valid; undated tasks stay unscheduled and no recurrence is generated.
+5. Focus sessions stay in memory and award no rewards.
+6. Flowers are stable, decorative and reduced-motion safe.
+7. CozyQuest uses the dashboard's XP, preserves per-biome deltas, and returns cleanly to the dashboard.
+8. Malformed localStorage data is quarantined without corrupting the other domain.
+9. Exports/imports validate before writing and keep pre-existing backups limited to three per domain.
+10. `node --test` passes after any change.
+
+## 15. Roadmap and open decisions
+
+These are later stages, not commitments in the current product:
+
+- Validate the task/reward loop with real users and improve confusing interactions.
+- Add an in-app migration report and an undo/history view.
+- Add optional self-care flows around the implemented calendar, focus and appreciation features.
+- Extend the world with movement, a fuller editor, crafting or new unlock tiers only after the core loop is validated.
+- Define account, privacy and permission rules before any sharing or cloud sync.
+- Explore analytics or explainable AI suggestions only with consent-aware data handling.
+
+Open decisions include the future companion, voice-input provider, native mobile client, social permissions and whether to enlarge the fixed biome/catalog sets.
+
+## 16. Git discipline for contributors
+
+Work on one focused branch at a time, run the test suite, inspect the full diff and keep commits meaningful. Keep `main` stable, tag verified milestones, and avoid secrets, credentials or real personal task data in commits. Review before merging, and do not rewrite shared history after a push. See [ARCHITECTURE.md](ARCHITECTURE.md) for safe extension boundaries and [README.md](README.md) for commands.
