@@ -94,6 +94,16 @@ function renderStats() {
     $('xp-bar').style.width = '100%';
     $('next-level').textContent = 'Your meadow is thriving!';
   }
+
+  const dailyTotal = state.tasks.length;
+  const dailyDone = rules.countCompleted(state);
+  if ($('daily-progress-text')) {
+    $('daily-progress-text').textContent = `${dailyDone} of ${dailyTotal} task${dailyTotal === 1 ? '' : 's'} complete`;
+    $('daily-progress-fill').style.width = dailyTotal ? `${dailyDone / dailyTotal * 100}%` : '0%';
+    $('daily-progress-note').textContent = dailyTotal
+      ? (dailyDone === dailyTotal ? 'All caught up. Lovely work.' : `${dailyTotal - dailyDone} still waiting for you.`)
+      : 'Add a task to begin your day.';
+  }
 }
 
 function featureLabel(id) {
@@ -126,6 +136,7 @@ function withGrowthFeedback(message, result) {
 }
 
 function updateWorldGrowth(result) {
+  if (!$('world-growth')) return;
   const progress = result.progress;
   const row = $('world-growth');
   row.hidden = progress.xp === 0;
@@ -203,14 +214,9 @@ function composeWorldScene(xp, worldStateToCompose) {
 }
 
 function applyWorldComposition(composition, xp) {
-  if (!worldHandle) {
-    worldHandle = world.mount(document.getElementById('world-canvas'), {
-      infoPanel: document.getElementById('world-info-panel'),
-      xp,
-      scene: composition.scene
-    });
-    return syntheticGrowthResult(xp);
-  }
+  // Phase 2.8.1 has no live CozyQuest view. Composition still validates the
+  // derived world during state commits, but no renderer is created here.
+  if (!worldHandle) return syntheticGrowthResult(xp);
 
   const update = { xp, scene: composition.scene };
   const checked = worldHandle.preflightProgression(update);
@@ -406,6 +412,7 @@ function describeIssue(issue) {
 }
 
 function renderBiomeControls() {
+  if (!$('biome-select')) return;
   const worldV2 = savedWorldState.schemaVersion === 2;
   const select = $('biome-select');
   const activeBiome = worldV2 ? savedWorldState.activeBiome : 'meadow';
@@ -433,6 +440,7 @@ function unlockedBiomeCount(evaluation) {
 }
 
 function renderDecorationControls() {
+  if (!$('decor-catalog') || !$('decor-owned') || !$('decor-placed')) return;
   if (!savedWorldState || savedWorldState.schemaVersion !== 2) {
     $('decor-catalog').innerHTML = '';
     $('decor-owned').innerHTML = '<p class="muted">Decorations unlock with world state v2.</p>';
@@ -726,15 +734,15 @@ $('import-file').addEventListener('change', (e) => {
   reader.readAsText(file);
 });
 
-$('biome-select').addEventListener('change', (e) => mutateDecoration('biome', e.target.value));
+if ($('biome-select')) $('biome-select').addEventListener('change', (e) => mutateDecoration('biome', e.target.value));
 
-$('world-controls-panel').addEventListener('click', (e) => {
+if ($('world-controls-panel')) $('world-controls-panel').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-decor-action]');
   if (!btn || btn.disabled) return;
   mutateDecoration(btn.dataset.decorAction, btn.dataset.id);
 });
 
-$('reset-world').addEventListener('click', () => {
+if ($('reset-world')) $('reset-world').addEventListener('click', () => {
   if (!hasWorldModifications(savedWorldState)) {
     notify('The world already has no saved changes.', 'info');
     return;
@@ -759,20 +767,7 @@ $('reset-world').addEventListener('click', () => {
 });
 
 render();
-const initialXp = currentXp();
-let initialComposition;
-try {
-  initialComposition = composeWorldScene(initialXp, savedWorldState);
-} catch (error) {
-  console.warn('CozyQuest initial world composition issue:', error);
-  initialComposition = worldProgression.createProgressionScene(baseWorldMap, initialXp);
-}
-worldHandle = world.mount(document.getElementById('world-canvas'), {
-  infoPanel: document.getElementById('world-info-panel'),
-  xp: initialXp,
-  scene: initialComposition.scene
-});
-updateWorldGrowth(syntheticGrowthResult(initialXp));
+updateWorldGrowth(syntheticGrowthResult(currentXp()));
 
 if (startupRecovery && startupRecovery.recovered) {
   notify('Recovered a previous update before loading your progress.', 'info');
