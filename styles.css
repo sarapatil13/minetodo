@@ -1271,6 +1271,32 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.task-flower {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 12px;
+  line-height: 1;
+  vertical-align: -1px;
+  transform-origin: center;
+}
+
+.task-flower.is-blooming {
+  animation: flower-bloom .55s cubic-bezier(.2,.85,.3,1) both;
+}
+
+@keyframes flower-bloom {
+  0% { opacity: 0; transform: scale(.5) rotate(-10deg); }
+  70% { opacity: 1; transform: scale(1.08) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-flower.is-blooming {
+    animation: none;
+  }
+}
+
 .task-main small {
   display: block;
   color: var(--muted);

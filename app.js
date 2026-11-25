@@ -14,6 +14,7 @@ const stateCommit = window.CQ.stateCommit;
 const progressionConfig = window.CQ.progressionConfig;
 const calendar = window.CQ.calendar;
 const focusTimerModule = window.CQ.focusTimer;
+const flowers = window.CQ.flowers;
 const baseWorldMap = world.createSampleMeadow();
 let worldHandle = null;
 let activeView = 'dashboard';
@@ -64,6 +65,7 @@ let selectedDateKey = null;
 const focusTimer = focusTimerModule.createTimer({ now: () => Date.now() });
 let focusInterval = null;
 let focusLabel = 'Pomodoro (25m)';
+let recentlyCompletedFlowers = new Set();
 
 function newId() {
   try {
@@ -675,6 +677,25 @@ function badgeClass(priority) {
   return `priority-dot ${priorityModifiers(priority)}`;
 }
 
+function prefersReducedMotion() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+function takeRecentCompletions() {
+  const ids = recentlyCompletedFlowers;
+  recentlyCompletedFlowers = new Set();
+  return ids;
+}
+
+function flowerMarkup(task, bloomingIds) {
+  if (task.done !== true) return '';
+  const flower = flowers.flowerForTask(task);
+  if (!flower) return '';
+  const blooming = !prefersReducedMotion() && bloomingIds.has(task.id);
+  return `<span class="task-flower${blooming ? ' is-blooming' : ''}" ` +
+    `data-flower="${flower.id}" aria-hidden="true">${flower.glyph}</span>`;
+}
+
 function visibleTasks() {
   const dated = selectedDateKey
     ? state.tasks.filter((t) => t.date === selectedDateKey)
@@ -685,6 +706,7 @@ function visibleTasks() {
 function renderTasks() {
   const list = $('task-list');
   const tasks = visibleTasks();
+  const bloomingIds = takeRecentCompletions();
   $('task-count').textContent = `${tasks.length} task${tasks.length === 1 ? '' : 's'}`;
 
   if (!tasks.length) {
@@ -715,7 +737,7 @@ function renderTasks() {
     return (
       `<article class="task-item ${t.done ? 'completed' : ''} ${modifiers}">` +
       `<button class="task-check" data-action="toggle" data-id="${t.id}" aria-label="${t.done ? 'Mark not done' : 'Complete task'}">${t.done ? '✓' : ''}</button>` +
-      `<div class="task-main"><b>${escapeHtml(t.title)}</b><small>${escapeHtml(t.type)}${due}</small></div>` +
+      `<div class="task-main"><b>${escapeHtml(t.title)}${flowerMarkup(t, bloomingIds)}</b><small>${escapeHtml(t.type)}${due}</small></div>` +
       `<span class="${badgeClass(t.priority)}">${escapeHtml(priorityLabel(t.priority))}</span>` +
       `<span class="task-reward">+${reward.xp} XP · +${reward.coins} 🪙</span>` +
       `<div class="task-actions">` +
@@ -957,17 +979,16 @@ $('task-list').addEventListener('click', (e) => {
     if (!task.done) {
       const result = rules.completeTask(state, task.id, { entryId: newId(), now: new Date().toISOString() });
       if (!result.ok) { notify('Could not complete task.', 'error'); return; }
-      if (result.entry) {
-        const reward = result.entry.reward;
-        const label = rules.rewardFor(result.entry.prioritySnapshot).label;
-        commitState(result.state, {
-          message: `+${reward.xp} XP · +${reward.coins} coins · +${reward.amount} ${label} ✨`,
+      recentlyCompletedFlowers.add(task.id);
+      const committed = result.entry
+        ? commitState(result.state, {
+          message: `+${result.entry.reward.xp} XP · +${result.entry.reward.coins} coins · +${result.entry.reward.amount} ${rules.rewardFor(result.entry.prioritySnapshot).label} ✨`,
           tone: 'success'
-        });
-      } else {
-        commitState(result.state, { message: 'Completed again — reward already earned 🌿', tone: 'info' });
-      }
+        })
+        : commitState(result.state, { message: 'Completed again — reward already earned 🌿', tone: 'info' });
+      if (!committed) recentlyCompletedFlowers.delete(task.id);
     } else {
+      recentlyCompletedFlowers.delete(task.id);
       const result = rules.reopenTask(state, task.id);
       if (!result.ok) { notify('Could not reopen task.', 'error'); return; }
       commitState(result.state, {

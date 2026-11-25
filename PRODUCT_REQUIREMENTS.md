@@ -1,6 +1,6 @@
 # CozyQuest — Product Requirements Document
 
-**Status:** Living PRD — MVP definition plus the implemented Phase 2.8.3 calendar/focus slice
+**Status:** Living PRD — MVP definition plus the implemented Phase 2.8.4 flower appreciation slice
 **Product direction:** Cozy, game-inspired productivity and self-care companion  
 **Initial platform:** Responsive web app, local-first  
 
@@ -34,6 +34,7 @@ This is a product hypothesis. Module 1's design-thinking approach calls for test
 | Priority | Simple levels plus urgent/important distinction |
 | Input | Manual and voice (voice deferred from first MVP) |
 | Focus timer | Pomodoro and custom (delivered in Phase 2.8.3) |
+| Flower appreciation | Decorative, deterministic flowers beside completed task titles (delivered in Phase 2.8.4) |
 | Rewards | XP, levels, coins, resources, achievements, items, biomes |
 | Reward rule | Every completed task earns both coins and resources; quantity/rarity varies by priority. Rewards are permanent: reopening or deleting a task never reverses them, and recompleting never pays twice. |
 | Missed tasks | Gentle handling; no loss of earned rewards |
@@ -165,4 +166,16 @@ Phase 2.8.3 adds two dashboard widgets while preserving the task schema, reward 
 - Timer calculations are timestamp-based, not interval-count based. One owned interval updates timer DOM only, is cleared on pause/reset/completion/`pagehide`, and never calls the full application render or rebuilds the task list.
 - Both pure UMD modules (`CQ.calendar`, `CQ.focusTimer`) remain classic-script and `file://` compatible; the timer clock is injectable for deterministic tests.
 
-Out of scope for this phase: flower appreciation, recurrence or recurring automation, notification sounds, focus-session history, storage of timer state, and any change to task rewards or world progression.
+Out of scope for that phase: recurrence or recurring automation, notification sounds, focus-session history, storage of timer state, and any change to task rewards or world progression.
+
+## 14. Phase 2.8.4 flower appreciation (implemented)
+
+Phase 2.8.4 adds gentle appreciation to task completion while preserving the task schema, reward matrix, permanent ledger, world-state v2, export/import, sidebar routing, and CozyQuest lifecycle.
+
+- `CQ.flowers` is a pure UMD module with eight distinct, frozen varieties. Assignment is a deterministic FNV-1a hash of the stable task ID, so filtering, reordering, reloads, reopening, and recompletion keep the same decorative flower. Missing, empty, or non-string IDs receive no flower, and lookup never mutates task data.
+- Completed tasks show one small flower beside the title. The flower is `aria-hidden` because it is decorative, while the existing check button keeps its accessible completion label. No external image or new storage key is introduced.
+- A bloom animation is queued only for an incomplete-to-complete transition and consumed by the next render. Reloads, unrelated full renders, calendar selection, navigation, and timer ticks never replay it.
+- Reduced motion is respected both by a CSS media query and by a JavaScript preference check that omits the bloom class entirely.
+- Flowers are appreciation, not currency. They never change XP, coins, resources, reward claims, occurrence inference, inventory, collection pressure, or competitive mechanics.
+
+Out of scope for this phase: recurrence, notification sounds, focus-session history, stored flower state, flower inventory, collection scoring, competitive mechanics, and any change to task rewards or world progression.

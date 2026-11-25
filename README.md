@@ -27,6 +27,7 @@ Progress is saved in this browser using `localStorage`. Task state and user-owne
 - All / To do / Completed filters.
 - A monthly task calendar with previous/next navigation, a local today marker, scheduled-date dots, date filtering, a clear-filter control, and quick add through the existing task dialog.
 - Pomodoro and custom in-memory focus timers with start, pause, resume, reset, and in-widget completion feedback.
+- A small deterministic flower beside each completed task title, with a one-time bloom on completion and no reward or storage changes.
 - A Canvas 2D isometric meadow renderer with terrain, trees, flowers, a pond and a starter house.
 - Canonical terrain definitions, aliases, immutable grid queries, and validated terrain updates.
 - Pointer-friendly camera panning and pointer-centred wheel/pinch zoom over the meadow.
@@ -168,6 +169,7 @@ src/world/decorations.js     ownership, placement, movement, removal and biome s
 src/stateCommit.js           validated two-domain commits, rollback and recovery marker
 src/calendar.js         pure local-date month generation and task/date mapping
 src/focusTimer.js       pure time-based Pomodoro/custom timer state
+src/flowers.js          pure deterministic decorative flower assignment
 tests/*.test.js         dependency-free node:test suites
 ```
 
@@ -387,6 +389,14 @@ Phase 2.8.3 makes both dashboard widgets functional without changing the task en
 
 `CQ.focusTimer` is a pure UMD module with an injectable clock. Its state is only in memory. Remaining time is computed from a target timestamp rather than fixed interval decrements, so delayed or skipped ticks do not cause drift. The app owns one 250 ms interval, clears it on pause, reset, completion, and `pagehide`, and only writes timer DOM on each tick; the full application render and task list are untouched. Completion feedback stays inside the focus widget and is separate from XP, points, and rewards.
 
+## Phase 2.8.4 flower appreciation
+
+Phase 2.8.4 adds a small decorative flower beside completed task titles without changing the task schema, reward matrix, permanent ledger, world state, export/import, or task lifecycle.
+
+`CQ.flowers` is a pure UMD module with eight frozen varieties. A deterministic FNV-1a hash of the stable task ID selects one variety, so the same flower appears after reloads, filtering, reordering, reopening, and recompletion. Missing, empty, or non-string IDs receive no flower, and lookup never mutates the task or the returned variety.
+
+The bloom class is queued in a transient in-memory set only when a task actually moves from incomplete to complete, then consumed by the next render. Reloads, unrelated full renders, calendar selection, navigation, and timer ticks therefore show existing flowers without replaying the animation. The flower span is `aria-hidden`, and both a CSS media query and a JavaScript preference check disable the bloom for `prefers-reduced-motion`. Flowers carry no XP, coins, resources, inventory, collection score, or persistence.
+
 ## Tests
 
 Run the complete automated suite from this directory:
@@ -395,17 +405,17 @@ Run the complete automated suite from this directory:
 node --test
 ```
 
-The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, rollback-safe progression commits, versioned world-state validation and quarantine, pure world composition, two-domain commit and recovery handling, world-aware backup envelopes, and classic script order/reset control. Phase 2.7 also covers typed unlock derivation, catalog/biome determinism, v1→v2 migration fidelity, ownership/placement invariants, biome isolation, and the new app-shell controls. Phase 2.8.3 also covers local-date month generation, leap years and month boundaries, date/task mapping, the full timer lifecycle, custom durations, delayed-tick drift, completion transitions, and the widget DOM/CSS contracts.
+The suite covers the 12-combination matrix, coin/resource formulas, complete/reopen/recomplete cycles, permanent rewards after deletion, priority locking, v1 migration, storage validation/quarantine/backup pruning, import/export rejection cases, isometric coordinate transforms and tile picking, deterministic map data, scene depth ordering, canvas drawing dispatch and additive focus feedback, DPR sizing, mount/cleanup behavior, canonical terrain definitions and aliases, structured map validation, immutable grid access, terrain updates, camera defaults and transforms, pointer-centred and constrained zoom, custom zoom limits, panning calculations, viewport boundaries, semantic pointer input, tap/pan/pinch classification, stable target indexing, renderer-derived shape hit testing, immutable interaction state, panel behavior, hover/selection/keyboard flows, resize handling, controller cleanup, XP stage/milestone derivation, deterministic progression composition, in-place target replacement, rollback-safe progression commits, versioned world-state validation and quarantine, pure world composition, two-domain commit and recovery handling, world-aware backup envelopes, and classic script order/reset control. Phase 2.7 also covers typed unlock derivation, catalog/biome determinism, v1→v2 migration fidelity, ownership/placement invariants, biome isolation, and the new app-shell controls. Phase 2.8.3 also covers local-date month generation, leap years and month boundaries, date/task mapping, the full timer lifecycle, custom durations, delayed-tick drift, completion transitions, and the widget DOM/CSS contracts. Phase 2.8.4 also covers deterministic variety assignment and distribution, invalid IDs, input immutability, bloom queue consumption, reduced-motion guards, decorative accessibility, and the no-reward/no-storage contracts.
 
 ## MVP boundary
 
-This slice intentionally does not include login, cloud sync, friend visits, shared worlds, AI suggestions, analytics, breathing exercises, journal entries, a shop/spending economy, crafting, object rotation, a full map editor, real-time 3D movement, recurrence, recurring automation, or recurring calendar entries. Those should be added in stages after the core task loop has been tested.
+This slice intentionally does not include login, cloud sync, friend visits, shared worlds, AI suggestions, analytics, breathing exercises, journal entries, a shop/spending economy, crafting, object rotation, a full map editor, real-time 3D movement, recurrence, recurring automation, recurring calendar entries, flower inventory, collection scoring, or competitive mechanics. Those should be added in stages after the core task loop has been tested.
 
 ## Suggested next stages
 
 1. Validate the task/reward loop with real users and improve confusing interactions.
 2. Add an in-app migration report and an undo/history view.
-3. Add self-care flows around the now-implemented calendar and focus timer.
+3. Add self-care flows around the now-implemented calendar, focus timer, and flower appreciation.
 4. Extend the grown world with movement, a full in-app map editor (beyond the current decoration controls), crafting, and new unlock tiers.
 5. Add accounts, privacy rules, friend permissions, and cloud sync only when sharing is ready.
 6. Add analytics and AI suggestions using consent-aware, explainable data.
