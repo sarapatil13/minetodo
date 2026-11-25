@@ -19,7 +19,7 @@
     </section>
     <section class="dashboard">
       <article class="world-card">
-        <div class="world-heading"><div><span class="eyebrow">COZYQUEST · YOUR HOME BIOME</span><h2>Meadow Haven</h2></div><span class="weather">☀️ <small>Sunny day</small></span></div>
+        <div class="world-heading"><div><span class="eyebrow">COZYQUEST · YOUR HOME BIOME</span><h2 id="world-name">Meadow Haven</h2></div><span class="weather">☀️ <small>Sunny day</small></span></div>
         <div class="world-scene">
           <p id="world-controls-help" class="sr-only">Interactive meadow. Use the arrow keys to move between objects, Enter or Space to inspect the focused object, and Escape to close details. Plus and minus zoom, zero resets the view. Drag to pan; pinch or scroll to zoom.</p>
           <canvas id="world-canvas" role="application" tabindex="0" aria-label="CozyQuest interactive isometric meadow" aria-describedby="world-controls-help">A cozy isometric meadow with a cottage, trees, flowers, a winding path and a pond.</canvas>
@@ -31,6 +31,15 @@
             <dl id="world-object-meta" class="world-info-meta" data-world-object-meta></dl>
           </aside>
           <div class="world-caption">A peaceful place to begin <span>🌼</span></div>
+        </div>
+        <div class="world-controls-panel" id="world-controls-panel">
+          <div class="biome-row"><label for="biome-select">Biome</label><select id="biome-select" aria-label="Choose a biome"></select><span id="biome-hint" class="muted"></span></div>
+          <div class="decor-row">
+            <div class="decor-block"><b>Collect decorations</b><div id="decor-catalog" class="decor-list"></div></div>
+            <div class="decor-block"><b>Your decorations</b><div id="decor-owned" class="decor-list"></div></div>
+            <div class="decor-block"><b>Placed here</b><div id="decor-placed" class="decor-list"></div></div>
+          </div>
+          <div class="placement-row"><label>Place at <input id="place-col" type="number" min="0" max="10" value="6" aria-label="Placement column"></label><span>,</span><label>row <input id="place-row" type="number" min="0" max="8" value="6" aria-label="Placement row"></label><span id="placement-hint" class="muted"></span></div>
         </div>
         <div class="world-footer"><span>🏡 Home plot</span><button type="button" class="world-reset" id="reset-world">Reset world changes</button><span>🔒 New biomes unlock as you grow</span></div>
       </article>

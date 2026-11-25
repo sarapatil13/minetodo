@@ -6,6 +6,10 @@ const transfer = window.CQ.transfer;
 const world = window.CQ.world;
 const worldProgression = world.progression;
 const worldStateModule = window.CQ.worldState;
+const decorations = window.CQ.decorations;
+const biomeCatalog = world.biomeCatalog;
+const contentCatalog = world.contentCatalog;
+const unlocks = world.unlocks;
 const stateCommit = window.CQ.stateCommit;
 const progressionConfig = window.CQ.progressionConfig;
 const baseWorldMap = world.createSampleMeadow();
@@ -37,7 +41,7 @@ if (!startupRecovery.ok) {
 
 const loaded = storage.loadState(store);
 if (loaded.issues.length) console.warn('CozyQuest storage issues:', loaded.issues);
-const loadedWorld = worldStateModule.loadState(store);
+const loadedWorld = worldStateModule.loadAnyState(store);
 if (loadedWorld.issues.length) console.warn('CozyQuest world state issues:', loadedWorld.issues);
 
 let state = loaded.state;
@@ -163,11 +167,32 @@ function issueText(issue) {
 }
 
 function composeWorldScene(xp, worldStateToCompose) {
-  const composition = world.content.compose({
-    baseMap: baseWorldMap,
-    xp,
-    state: worldStateToCompose
-  });
+  let composition;
+  if (worldStateToCompose && worldStateToCompose.schemaVersion === 2) {
+    const active = decorations.activeModifications(worldStateToCompose, {
+      taskState: state,
+      enforceUnlocks: false
+    });
+    if (!active.ok) {
+      throw new Error(active.issues.map(issueText).join('; ') || 'Active biome could not be composed.');
+    }
+    if (active.issues.length) {
+      console.warn('CozyQuest skipped world placements:', active.issues.map(issueText));
+    }
+    const biomeId = worldStateToCompose.activeBiome;
+    composition = world.content.compose({
+      baseMap: biomeCatalog.createBaseMap(biomeId),
+      xp,
+      state: active.modifications,
+      palette: biomeCatalog.paletteFor(biomeId)
+    });
+  } else {
+    composition = world.content.compose({
+      baseMap: baseWorldMap,
+      xp,
+      state: worldStateToCompose
+    });
+  }
   if (!composition.ok) {
     const details = composition.issues.length
       ? ': ' + composition.issues.map(issueText).join('; ')
@@ -196,8 +221,16 @@ function applyWorldComposition(composition, xp) {
 }
 
 function hasWorldModifications(worldStateToCheck) {
+  if (!worldStateToCheck) return false;
+  if (worldStateToCheck.schemaVersion === 2) {
+    if (worldStateToCheck.ownership.items.length) return true;
+    return Object.keys(worldStateToCheck.biomes).some((biomeId) => {
+      const delta = worldStateToCheck.biomes[biomeId];
+      return delta.objects.placed.length || delta.objects.moved.length ||
+        delta.objects.removed.length || delta.terrain.length;
+    });
+  }
   return Boolean(
-    worldStateToCheck &&
     worldStateToCheck.objects &&
     (
       worldStateToCheck.objects.placed.length ||
@@ -211,7 +244,7 @@ function hasWorldModifications(worldStateToCheck) {
 function reloadStoredState() {
   const reloaded = storage.loadState(store);
   if (reloaded.issues.length) console.warn('CozyQuest storage issues:', reloaded.issues);
-  const reloadedWorld = worldStateModule.loadState(store);
+  const reloadedWorld = worldStateModule.loadAnyState(store);
   if (reloadedWorld.issues.length) console.warn('CozyQuest world state issues:', reloadedWorld.issues);
 
   state = reloaded.state;
@@ -364,9 +397,131 @@ function renderTasks() {
   }).join('');
 }
 
+function decorationEvaluation() {
+  return { taskState: state, worldState: savedWorldState };
+}
+
+function describeIssue(issue) {
+  return issueText(issue);
+}
+
+function renderBiomeControls() {
+  const worldV2 = savedWorldState.schemaVersion === 2;
+  const select = $('biome-select');
+  const activeBiome = worldV2 ? savedWorldState.activeBiome : 'meadow';
+  const evaluation = worldV2
+    ? biomeCatalog.evaluateUnlocks(decorationEvaluation())
+    : { available: { meadow: true } };
+
+  select.innerHTML = biomeCatalog.all().map((biome) => {
+    const unlocked = unlocks.isUnlocked(biome.id, evaluation);
+    const hint = unlocked ? '' : ' · ' + unlocks.describeRequirement(biome.unlock);
+    return `<option value="${biome.id}"${biome.id === activeBiome ? ' selected' : ''}${unlocked ? '' : ' disabled'}>` +
+      `${escapeHtml(biome.name + hint)}</option>`;
+  }).join('');
+  select.disabled = !worldV2;
+
+  const biome = biomeCatalog.getBiome(activeBiome);
+  $('world-name').textContent = biome ? biome.name : 'Meadow Haven';
+  $('biome-hint').textContent = worldV2
+    ? (unlockedBiomeCount(evaluation) + ' of ' + biomeCatalog.all().length + ' biomes unlocked')
+    : 'Saved with an older world format.';
+}
+
+function unlockedBiomeCount(evaluation) {
+  return biomeCatalog.all().filter((biome) => unlocks.isUnlocked(biome.id, evaluation)).length;
+}
+
+function renderDecorationControls() {
+  if (!savedWorldState || savedWorldState.schemaVersion !== 2) {
+    $('decor-catalog').innerHTML = '';
+    $('decor-owned').innerHTML = '<p class="muted">Decorations unlock with world state v2.</p>';
+    $('decor-placed').innerHTML = '';
+    $('placement-hint').textContent = '';
+    return;
+  }
+
+  const evaluation = unlocks.evaluate(decorationEvaluation());
+  const ownedByCatalog = new Set(savedWorldState.ownership.items.map((item) => item.catalogId));
+  $('decor-catalog').innerHTML = contentCatalog.all().map((item) => {
+    const unlocked = unlocks.isUnlocked(item.id, evaluation);
+    const owned = ownedByCatalog.has(item.id);
+    const label = owned ? 'Owned' : unlocked ? 'Acquire' : unlocks.describeRequirement(item.unlock);
+    return `<div class="decor-item"><span>${escapeHtml(item.label)}</span>` +
+      `<button type="button" data-decor-action="acquire" data-id="${item.id}"${!unlocked || owned ? ' disabled' : ''}>` +
+      `${escapeHtml(label)}</button></div>`;
+  }).join('');
+
+  const placedOwners = new Set();
+  Object.keys(savedWorldState.biomes).forEach((biomeId) => {
+    savedWorldState.biomes[biomeId].objects.placed.forEach((record) => placedOwners.add(record.ownedId));
+  });
+  $('decor-owned').innerHTML = savedWorldState.ownership.items.length
+    ? savedWorldState.ownership.items.map((item) => {
+      const def = contentCatalog.getItem(item.catalogId);
+      const label = def ? def.label : item.catalogId;
+      const placed = placedOwners.has(item.id);
+      return `<div class="decor-item"><span>${escapeHtml(label)}</span>` +
+        `<button type="button" data-decor-action="place" data-id="${item.id}"${placed ? ' disabled' : ''}>` +
+        `${placed ? 'Placed' : 'Place'}</button></div>`;
+    }).join('')
+    : '<p class="muted">Acquire a decoration to see it here.</p>';
+
+  const activeBiome = savedWorldState.activeBiome;
+  const placed = savedWorldState.biomes[activeBiome].objects.placed;
+  $('decor-placed').innerHTML = placed.length
+    ? placed.map((record) => {
+      const owned = savedWorldState.ownership.items.find((item) => item.id === record.ownedId);
+      const def = owned ? contentCatalog.getItem(owned.catalogId) : null;
+      const label = def ? def.label : record.kind;
+      return `<div class="decor-item"><span>${escapeHtml(label)} · ${record.col},${record.row}</span>` +
+        `<span class="decor-actions">` +
+        `<button type="button" data-decor-action="move" data-id="${record.id}">Move</button>` +
+        `<button type="button" data-decor-action="remove" data-id="${record.id}">Remove</button>` +
+        `</span></div>`;
+    }).join('')
+    : '<p class="muted">Nothing placed in this biome yet.</p>';
+
+  const active = decorations.activeModifications(savedWorldState, {
+    taskState: state,
+    enforceUnlocks: false
+  });
+  $('placement-hint').textContent = active.ok && active.issues.length
+    ? active.issues.length + ' saved placement(s) skipped for this biome.'
+    : '';
+}
+
+function mutateDecoration(action, id) {
+  const settings = { taskState: state, now: new Date().toISOString() };
+  let result;
+  if (action === 'acquire') result = decorations.acquire(savedWorldState, id, settings);
+  else if (action === 'place') {
+    const cell = { col: Number($('place-col').value), row: Number($('place-row').value) };
+    result = decorations.place(savedWorldState, id, cell, settings);
+  } else if (action === 'move') {
+    const cell = { col: Number($('place-col').value), row: Number($('place-row').value) };
+    result = decorations.move(savedWorldState, id, cell, settings);
+  } else if (action === 'remove') result = decorations.remove(savedWorldState, id, settings);
+  else if (action === 'biome') result = decorations.switchBiome(savedWorldState, id, settings);
+  else return;
+
+  if (!result.ok) {
+    notify('Could not update the world: ' + result.issues.map(describeIssue).join('; '), 'error');
+    return;
+  }
+  commitState(state, {
+    domains: { task: false, world: true },
+    worldState: result.state,
+    message: 'World updated 🌿',
+    tone: 'success'
+  });
+}
+
 function render() {
   renderStats();
   renderTasks();
+  renderBiomeControls();
+  renderDecorationControls();
 }
 
 function notify(message, tone = 'info') {
@@ -571,6 +726,14 @@ $('import-file').addEventListener('change', (e) => {
   reader.readAsText(file);
 });
 
+$('biome-select').addEventListener('change', (e) => mutateDecoration('biome', e.target.value));
+
+$('world-controls-panel').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-decor-action]');
+  if (!btn || btn.disabled) return;
+  mutateDecoration(btn.dataset.decorAction, btn.dataset.id);
+});
+
 $('reset-world').addEventListener('click', () => {
   if (!hasWorldModifications(savedWorldState)) {
     notify('The world already has no saved changes.', 'info');
@@ -583,7 +746,7 @@ $('reset-world').addEventListener('click', () => {
   );
   if (!confirmed) return;
 
-  const freshWorld = worldStateModule.emptyState();
+  const freshWorld = worldStateModule.emptyV2State();
   freshWorld.createdAt = savedWorldState.createdAt || new Date().toISOString();
   freshWorld.updatedAt = new Date().toISOString();
   commitState(state, {

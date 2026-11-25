@@ -347,6 +347,109 @@ body {
   color: #547c60;
 }
 
+.world-controls-panel {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.biome-row,.placement-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.biome-row label,.placement-row label {
+  font-weight: 600;
+  color: var(--green-dark);
+}
+
+.biome-row select,.placement-row input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  padding: 5px 8px;
+}
+
+.biome-row select {
+  min-width: 150px;
+}
+
+.placement-row input {
+  width: 52px;
+}
+
+.decor-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.decor-block {
+  background: #faf8f1;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 9px;
+  min-height: 86px;
+}
+
+.decor-block > b {
+  display: block;
+  font-size: 10px;
+  color: var(--green-dark);
+  margin-bottom: 7px;
+}
+
+.decor-list {
+  display: grid;
+  gap: 5px;
+}
+
+.decor-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.decor-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.decor-item button {
+  border: 1px solid #cddccb;
+  border-radius: 7px;
+  background: #e8f1e4;
+  color: var(--green-dark);
+  font: inherit;
+  font-weight: 600;
+  padding: 3px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.decor-item button:hover:not(:disabled) {
+  background: #d7e8d1;
+}
+
+.decor-item button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.decor-actions {
+  display: flex;
+  gap: 4px;
+}
+
 .side-column {
   display: flex;
   flex-direction: column;

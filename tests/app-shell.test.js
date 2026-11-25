@@ -51,3 +51,24 @@ test('the world reset control has a matching style rule', () => {
   assert.match(html, /id="reset-world"/);
   assert.match(css, /\.world-reset\b/);
 });
+
+test('Phase 2.7 biome and decoration controls are present and styled', () => {
+  for (const id of [
+    'world-name', 'world-controls-panel', 'biome-select', 'biome-hint',
+    'decor-catalog', 'decor-owned', 'decor-placed', 'place-col', 'place-row', 'placement-hint'
+  ]) {
+    assert.match(html, new RegExp('id="' + id + '"'), id + ' is missing from index.html');
+  }
+  for (const rule of ['world-controls-panel', 'biome-row', 'decor-row', 'decor-item', 'placement-row']) {
+    assert.match(css, new RegExp('\\.' + rule + '\\b'), rule + ' has no style rule');
+  }
+});
+
+test('decorations load after world state and before the app', () => {
+  const sources = scripts.map(scriptSource);
+  const stateIndex = sources.indexOf('src/worldState.js');
+  const decorIndex = sources.indexOf('src/world/decorations.js');
+  const appIndex = sources.indexOf('app.js');
+  assert.ok(stateIndex !== -1 && stateIndex < decorIndex);
+  assert.ok(decorIndex !== -1 && decorIndex < appIndex);
+});
