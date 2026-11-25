@@ -14,6 +14,11 @@ const stateCommit = window.CQ.stateCommit;
 const progressionConfig = window.CQ.progressionConfig;
 const baseWorldMap = world.createSampleMeadow();
 let worldHandle = null;
+let activeView = 'dashboard';
+let pendingFocusTarget = null;
+const COZYQUEST_HASH = '#cozyquest';
+const DASHBOARD_HASH = '#dashboard';
+const DASHBOARD_FOCUS_TARGETS = ['tasks', 'calendar', 'focus'];
 let savedWorldState = null;
 let recoveryPending = false;
 let startupRecovery = null;
@@ -237,9 +242,9 @@ function composeWorldScene(xp, worldStateToCompose) {
 }
 
 function applyWorldComposition(composition, xp) {
-  // Phase 2.8.1 has no live CozyQuest view. Composition still validates the
-  // derived world during state commits, but no renderer is created here.
-  if (!worldHandle) return syntheticGrowthResult(xp);
+  // Dashboard commits still compose and preflight saved world state, but they
+  // never touch a hidden or nonexistent controller.
+  if (activeView !== 'cozyquest' || !worldHandle) return syntheticGrowthResult(xp);
 
   const update = { xp, scene: composition.scene };
   const checked = worldHandle.preflightProgression(update);
@@ -247,6 +252,176 @@ function applyWorldComposition(composition, xp) {
     throw new Error(checked.error || checked.issues.map(issueText).join('; ') || 'World update preflight failed.');
   }
   return worldHandle.setProgression(update);
+}
+
+function hashForView(view) {
+  return view === 'cozyquest' ? COZYQUEST_HASH : DASHBOARD_HASH;
+}
+
+function viewFromHash() {
+  return location.hash === COZYQUEST_HASH ? 'cozyquest' : 'dashboard';
+}
+
+function isReloadNavigation() {
+  try {
+    if (typeof performance === 'undefined') return false;
+    if (typeof performance.getEntriesByType === 'function') {
+      const entries = performance.getEntriesByType('navigation');
+      if (entries && entries.length) return entries[0].type === 'reload';
+    }
+    if (performance.navigation) {
+      return performance.navigation.type === performance.navigation.TYPE_RELOAD ||
+        performance.navigation.type === 1;
+    }
+  } catch {
+    // Navigation timing is optional on some file:// browsers.
+  }
+  return false;
+}
+
+function replaceHash(hash) {
+  try {
+    if (typeof history === 'undefined' || typeof history.replaceState !== 'function') {
+      location.hash = hash;
+      return;
+    }
+    history.replaceState(null, '', location.href.split('#')[0] + hash);
+  } catch {
+    location.hash = hash;
+  }
+}
+
+function destroyWorld() {
+  if (!worldHandle) return;
+  const handle = worldHandle;
+  worldHandle = null;
+  try {
+    handle.destroy();
+  } catch (error) {
+    console.warn('CozyQuest world cleanup issue:', error);
+  }
+}
+
+function updatePageHeading(view) {
+  if (!$('page-title')) return;
+  if (view === 'cozyquest') {
+    $('page-eyebrow').textContent = 'COZYQUEST · YOUR HOME BIOME';
+    $('page-title').textContent = 'A cozy world that grows with you';
+  } else {
+    $('page-eyebrow').textContent = 'YOUR LITTLE CORNER OF THE WORLD';
+    $('page-title').textContent = 'Your gentle dashboard';
+  }
+}
+
+function updateNavState(key) {
+  document.querySelectorAll('.sidebar-nav [data-view]').forEach((item) => {
+    const active = item.dataset.view === key;
+    item.classList.toggle('is-active', active);
+    if (active) item.setAttribute('aria-current', 'page');
+    else item.removeAttribute('aria-current');
+  });
+}
+
+function focusDashboardTarget(target) {
+  const targetIds = {
+    tasks: 'tasks-widget',
+    calendar: 'calendar-widget',
+    focus: 'focus-widget'
+  };
+  const el = target && targetIds[target] ? $(targetIds[target]) : null;
+  if (!el) return;
+  if (typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  if (typeof el.focus === 'function') {
+    try {
+      el.focus({ preventScroll: true });
+    } catch {
+      el.focus();
+    }
+  }
+}
+
+function enterCozyQuest() {
+  const template = $('cozyquest-world-template');
+  const cozyView = $('view-cozyquest');
+  const dashboardView = $('view-dashboard');
+  if (!template || !cozyView || !dashboardView) {
+    notify('CozyQuest view is unavailable.', 'error');
+    return;
+  }
+  if (activeView === 'cozyquest' && worldHandle && $('world-canvas')) return;
+
+  destroyWorld();
+  cozyView.replaceChildren(template.content.cloneNode(true));
+
+  // The cloned canvas must be visible before the controller measures it.
+  dashboardView.hidden = true;
+  cozyView.hidden = false;
+  activeView = 'cozyquest';
+  updatePageHeading('cozyquest');
+  updateNavState('cozyquest');
+
+  try {
+    const xp = currentXp();
+    const composition = composeWorldScene(xp, savedWorldState);
+    worldHandle = world.mount($('world-canvas'), {
+      scene: composition.scene,
+      xp,
+      infoPanel: $('world-info-panel')
+    });
+    if (!worldHandle) throw new Error('World controller could not be created.');
+    renderBiomeControls();
+    renderDecorationControls();
+    updateWorldGrowth(syntheticGrowthResult(xp));
+  } catch (error) {
+    destroyWorld();
+    cozyView.replaceChildren();
+    cozyView.hidden = true;
+    dashboardView.hidden = false;
+    activeView = 'dashboard';
+    updatePageHeading('dashboard');
+    updateNavState('dashboard');
+    if (location.hash === COZYQUEST_HASH) replaceHash(DASHBOARD_HASH);
+    notify('CozyQuest could not open: ' + error.message, 'error');
+  }
+}
+
+function leaveCozyQuest(focusTarget = null) {
+  destroyWorld();
+  const cozyView = $('view-cozyquest');
+  const dashboardView = $('view-dashboard');
+  if (cozyView) {
+    cozyView.hidden = true;
+    cozyView.replaceChildren();
+  }
+  if (dashboardView) dashboardView.hidden = false;
+  activeView = 'dashboard';
+  updatePageHeading('dashboard');
+  const navKey = DASHBOARD_FOCUS_TARGETS.includes(focusTarget) ? focusTarget : 'dashboard';
+  updateNavState(navKey);
+  focusDashboardTarget(navKey === 'dashboard' ? null : navKey);
+}
+
+function applyView(view, options = {}) {
+  if (view === 'cozyquest') enterCozyQuest();
+  else leaveCozyQuest(options.focusTarget || null);
+}
+
+function requestView(view, options = {}) {
+  const hash = hashForView(view);
+  if (location.hash !== hash) {
+    pendingFocusTarget = options.focusTarget || null;
+    location.hash = hash;
+    return;
+  }
+  applyView(view, options);
+}
+
+function handleRouteChange() {
+  const focusTarget = pendingFocusTarget;
+  pendingFocusTarget = null;
+  applyView(viewFromHash(), { focusTarget });
 }
 
 function hasWorldModifications(worldStateToCheck) {
@@ -757,15 +932,41 @@ $('import-file').addEventListener('change', (e) => {
   reader.readAsText(file);
 });
 
-if ($('biome-select')) $('biome-select').addEventListener('change', (e) => mutateDecoration('biome', e.target.value));
-
-if ($('world-controls-panel')) $('world-controls-panel').addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-decor-action]');
-  if (!btn || btn.disabled) return;
-  mutateDecoration(btn.dataset.decorAction, btn.dataset.id);
+const sidebarNav = document.querySelector('.sidebar-nav');
+if (sidebarNav) sidebarNav.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn) return;
+  const key = btn.dataset.view;
+  requestView(key === 'cozyquest' ? 'cozyquest' : 'dashboard', {
+    focusTarget: DASHBOARD_FOCUS_TARGETS.includes(key) ? key : null
+  });
 });
 
-if ($('reset-world')) $('reset-world').addEventListener('click', () => {
+window.addEventListener('hashchange', handleRouteChange);
+
+// World controls are cloned into the live view, so a stable document listener
+// handles them once instead of rebinding to each newly cloned element.
+document.addEventListener('change', (e) => {
+  const target = e.target;
+  if (!target || target.id !== 'biome-select') return;
+  const cozyView = $('view-cozyquest');
+  if (!cozyView || cozyView.hidden || !cozyView.contains(target)) return;
+  mutateDecoration('biome', target.value);
+});
+
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  const cozyView = $('view-cozyquest');
+  if (!cozyView || cozyView.hidden || !target || typeof target.closest !== 'function') return;
+
+  const decorBtn = target.closest('#world-controls-panel button[data-decor-action]');
+  if (decorBtn && cozyView.contains(decorBtn) && !decorBtn.disabled) {
+    mutateDecoration(decorBtn.dataset.decorAction, decorBtn.dataset.id);
+    return;
+  }
+
+  const resetBtn = target.closest('#reset-world');
+  if (!resetBtn || !cozyView.contains(resetBtn)) return;
   if (!hasWorldModifications(savedWorldState)) {
     notify('The world already has no saved changes.', 'info');
     return;
@@ -791,6 +992,16 @@ if ($('reset-world')) $('reset-world').addEventListener('click', () => {
 
 render();
 updateWorldGrowth(syntheticGrowthResult(currentXp()));
+
+// A reload always lands on the dashboard. A fresh direct #cozyquest load still
+// enters CozyQuest, and later hash changes drive back/forward navigation.
+const initialView = isReloadNavigation() || viewFromHash() !== 'cozyquest'
+  ? 'dashboard'
+  : 'cozyquest';
+if (initialView === 'dashboard' && location.hash && location.hash !== DASHBOARD_HASH) {
+  replaceHash(DASHBOARD_HASH);
+}
+applyView(initialView);
 
 if (startupRecovery && startupRecovery.recovered) {
   notify('Recovered a previous update before loading your progress.', 'info');

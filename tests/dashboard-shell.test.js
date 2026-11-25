@@ -20,14 +20,24 @@ test('the dashboard is the default live view and points reuse accumulated XP', (
   assert.match(app, /\$\('xp'\)\.textContent = totals\.xp;/);
 });
 
-test('CozyQuest markup is inert at startup so no live canvas or controller is created', () => {
+test('CozyQuest markup is inert at startup and mounts only inside the enter lifecycle', () => {
   assert.ok(templateMatch, 'cozyquest-world-template is missing');
   assert.match(templateMatch[1], /id="world-canvas"/);
   assert.match(templateMatch[1], /id="world-controls-panel"/);
   assert.match(templateMatch[1], /id="reset-world"/);
   assert.doesNotMatch(htmlOutsideTemplate, /id="world-canvas"/);
-  assert.doesNotMatch(app, /worldHandle\s*=\s*world\.mount\(/);
-  assert.doesNotMatch(app, /function applyWorldComposition[\s\S]*?world\.mount\(/);
+  assert.match(htmlOutsideTemplate, /id="view-cozyquest"[^>]*\bhidden\b/);
+
+  const enterSource = app.match(/function enterCozyQuest\(\) \{[\s\S]*?\n\}/);
+  assert.ok(enterSource, 'enterCozyQuest is missing from app.js');
+  assert.match(enterSource[0], /cozyView\.hidden = false/);
+  assert.match(enterSource[0], /template\.content\.cloneNode\(true\)/);
+  assert.match(enterSource[0], /worldHandle\s*=\s*world\.mount\(/);
+
+  const applySource = app.match(/function applyWorldComposition\([\s\S]*?\n\}/);
+  assert.ok(applySource, 'applyWorldComposition is missing from app.js');
+  assert.doesNotMatch(applySource[0], /world\.mount\(/);
+  assert.match(applySource[0], /activeView !== 'cozyquest' \|\| !worldHandle/);
 });
 
 test('dashboard shell has welcome, daily-progress and widget layout hooks', () => {

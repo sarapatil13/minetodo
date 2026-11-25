@@ -13,8 +13,11 @@
       <div><div class="brand-name">Minetodo</div><div class="brand-tag">little steps, lovely days</div></div>
     </div>
     <nav class="sidebar-nav" aria-label="Views">
-      <div class="nav-item is-active" aria-current="page"><span>🏡</span><b>Dashboard</b></div>
-      <div class="nav-item is-soon" aria-disabled="true"><span>🌿</span><b>CozyQuest</b><small>Next</small></div>
+      <button type="button" class="nav-item is-active" data-view="dashboard" aria-current="page"><span aria-hidden="true">🏡</span><b>Dashboard</b></button>
+      <button type="button" class="nav-item" data-view="tasks"><span aria-hidden="true">✓</span><b>My Tasks</b></button>
+      <button type="button" class="nav-item" data-view="calendar"><span aria-hidden="true">🗓️</span><b>Calendar</b></button>
+      <button type="button" class="nav-item" data-view="focus"><span aria-hidden="true">⏱️</span><b>Focus</b></button>
+      <button type="button" class="nav-item nav-cozyquest" data-view="cozyquest"><span aria-hidden="true">🌿</span><b>CozyQuest</b></button>
     </nav>
     <div class="sidebar-profile">
       <span class="avatar">🧑🏻‍🌾</span>
@@ -26,12 +29,12 @@
   <div class="content-shell">
     <header class="topbar">
       <div class="page-heading">
-        <p class="eyebrow">YOUR LITTLE CORNER OF THE WORLD</p>
-        <h1>Your gentle dashboard</h1>
+        <p class="eyebrow" id="page-eyebrow">YOUR LITTLE CORNER OF THE WORLD</p>
+        <h1 id="page-title">Your gentle dashboard</h1>
       </div>
       <div class="topbar-actions">
         <div class="points-chip" aria-label="Accumulated points"><span aria-hidden="true">✨</span><b id="xp">0</b><small>points</small></div>
-        <div class="quest-chip"><span aria-hidden="true">🌿</span> CozyQuest later</div>
+        <div class="quest-chip"><span aria-hidden="true">🌿</span> CozyQuest view</div>
       </div>
     </header>
 
@@ -49,12 +52,12 @@
             </div>
             <div class="welcome-stat"><b id="done-count">0</b><span>small steps completed</span></div>
           </article>
-          <article class="widget-slot card">
+          <article class="widget-slot card" id="calendar-widget" tabindex="-1">
             <div class="card-title"><span>CALENDAR</span><span>🗓️</span></div>
             <h3>Task dates at a glance</h3>
             <p class="muted">Your existing due dates will appear here in the next milestone. No scheduling yet.</p>
           </article>
-          <article class="widget-slot card">
+          <article class="widget-slot card" id="focus-widget" tabindex="-1">
             <div class="card-title"><span>FOCUS TIMER</span><span>⏱️</span></div>
             <h3>A gentle focus session</h3>
             <p class="muted">Pomodoro and custom timers are coming next. Focus stays separate from rewards.</p>
@@ -62,7 +65,7 @@
         </div>
 
         <div class="dashboard-grid">
-          <section class="widget tasks-widget card">
+          <section class="widget tasks-widget card" id="tasks-widget" tabindex="-1">
             <div class="section-heading"><div><p class="eyebrow">YOUR REAL-LIFE ADVENTURES</p><h2>Today's tasks</h2></div><div class="section-actions"><button type="button" class="secondary-btn" id="export-json">⬇ Export</button><button type="button" class="secondary-btn" id="import-json">⬆ Import</button><button class="primary-btn" id="open-add">＋ Add a task</button><input type="file" id="import-file" accept="application/json,.json" hidden></div></div>
             <div class="task-toolbar"><div class="filters" role="group" aria-label="Filter tasks"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="open">To do</button><button class="filter" data-filter="done">Completed</button></div><span class="muted" id="task-count">0 tasks</span></div>
             <div id="task-list" class="task-list"><div class="empty-state"><div>🌷</div><b>Your adventure starts with one small step.</b><p>Add a task to earn your first rewards.</p></div></div>
@@ -74,6 +77,8 @@
           </aside>
         </div>
       </section>
+
+      <section id="view-cozyquest" class="view view-cozyquest" hidden aria-label="CozyQuest world"></section>
 
       <footer>Made for gentle progress <span>·</span> Your tasks and progress stay on this device.</footer>
     </main>
