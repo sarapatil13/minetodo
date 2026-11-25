@@ -72,6 +72,23 @@ function levelInfo(xp) {
   return { name: current[0], base: current[1], next };
 }
 
+function localDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function todayProgress() {
+  const today = localDateKey(new Date());
+  const scheduled = state.tasks.filter((task) => task.date === today);
+  return {
+    total: scheduled.length,
+    done: scheduled.filter((task) => task.done === true).length,
+    unscheduled: state.tasks.filter((task) => !task.date).length
+  };
+}
+
 function renderStats() {
   const totals = rules.computeTotals(state);
   const level = levelInfo(totals.xp);
@@ -95,14 +112,20 @@ function renderStats() {
     $('next-level').textContent = 'Your meadow is thriving!';
   }
 
-  const dailyTotal = state.tasks.length;
-  const dailyDone = rules.countCompleted(state);
+  const daily = todayProgress();
   if ($('daily-progress-text')) {
-    $('daily-progress-text').textContent = `${dailyDone} of ${dailyTotal} task${dailyTotal === 1 ? '' : 's'} complete`;
-    $('daily-progress-fill').style.width = dailyTotal ? `${dailyDone / dailyTotal * 100}%` : '0%';
-    $('daily-progress-note').textContent = dailyTotal
-      ? (dailyDone === dailyTotal ? 'All caught up. Lovely work.' : `${dailyTotal - dailyDone} still waiting for you.`)
-      : 'Add a task to begin your day.';
+    $('daily-progress-text').textContent = `${daily.done} of ${daily.total} task${daily.total === 1 ? '' : 's'} complete`;
+    $('daily-progress-fill').style.width = daily.total ? `${daily.done / daily.total * 100}%` : '0%';
+    if (daily.total) {
+      $('daily-progress-note').textContent = daily.done === daily.total
+        ? 'All caught up. Lovely work.'
+        : `${daily.total - daily.done} still waiting for you.`;
+    } else if (daily.unscheduled) {
+      $('daily-progress-note').textContent =
+        `${daily.unscheduled} undated task${daily.unscheduled === 1 ? '' : 's'} on your list; none scheduled for today.`;
+    } else {
+      $('daily-progress-note').textContent = 'Add a task scheduled for today.';
+    }
   }
 }
 

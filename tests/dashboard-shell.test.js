@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -39,8 +40,44 @@ test('dashboard shell has welcome, daily-progress and widget layout hooks', () =
   for (const rule of ['[hidden]', '.sidebar', '.welcome-grid', '.daily-progress', '.dashboard-grid', '.widget-slot']) {
     assert.ok(css.includes(rule + ' {') || css.startsWith(rule + ' {'), rule + ' has no style rule');
   }
-  assert.match(app, /const dailyTotal = state\.tasks\.length;/);
-  assert.match(app, /const dailyDone = rules\.countCompleted\(state\);/);
+  assert.match(html, /<b>Today's progress<\/b>/);
+  assert.match(html, /Add a task scheduled for today\./);
+  assert.match(app, /function localDateKey\(date\)/);
+  assert.match(app, /const today = localDateKey\(new Date\(\)\);/);
+  assert.match(app, /task\.date === today/);
+  assert.doesNotMatch(app, /const dailyTotal = state\.tasks\.length;/);
+  assert.doesNotMatch(app, /const dailyDone = rules\.countCompleted\(state\);/);
+});
+
+test("today's progress counts only today's scheduled tasks and reports undated tasks separately", () => {
+  const keySource = app.match(/function localDateKey\(date\) \{[\s\S]*?\n\}/);
+  const progressSource = app.match(/function todayProgress\(\) \{[\s\S]*?\n\}/);
+  assert.ok(keySource, 'localDateKey is missing from app.js');
+  assert.ok(progressSource, 'todayProgress is missing from app.js');
+
+  function FixedDate() {
+    return { getFullYear: () => 2026, getMonth: () => 10, getDate: () => 5 };
+  }
+  const sandbox = {
+    Date: FixedDate,
+    state: {
+      tasks: [
+        { date: '2026-11-05', done: true },
+        { date: '2026-11-05', done: false },
+        { date: '', done: true },
+        { date: '2026-11-06', done: false },
+        { date: '2026-11-04', done: true }
+      ]
+    }
+  };
+  const result = vm.runInNewContext(
+    `${keySource[0]}\n${progressSource[0]}\n({ key: localDateKey(new Date()), progress: todayProgress() })`,
+    sandbox
+  );
+  assert.equal(result.key, '2026-11-05');
+  assert.equal(result.progress.total, 2);
+  assert.equal(result.progress.done, 1);
+  assert.equal(result.progress.unscheduled, 1);
 });
 
 test('all IDs remain unique after the shell restructure', () => {
